@@ -93,9 +93,11 @@ Fact It bar and analysis:
    `Fact It · Not analyzed · [Analyze] · AI preliminary`. It appears
    only where an article was detected; nothing has been sent anywhere
    yet.
-2. Click **Analyze** in the bar or the **Fact It** toolbar button (pin
-   it via the extensions menu if hidden). The bar shows a spinner, then
-   the result: a support meter, `Factual support: <label>`, confidence
+2. Click **Analyze** in the bar. This is the only action that calls the
+   provider. The **Fact It** toolbar button (pin it via the extensions
+   menu if hidden) never analyzes: it shows the bar if it was hidden,
+   and once a result exists it opens/closes the details panel. The bar
+   shows a spinner, then the result: a support meter, `Factual support: <label>`, confidence
    and claim/flag counts, and the tag `AI preliminary · not externally
    verified`. Labels are descriptive (Well / Partially / Weakly
    supported, Insufficient support), never verdicts.
@@ -113,8 +115,10 @@ Fact It bar and analysis:
    its own section with the note that it does not affect factual
    support. ✕ or Details closes the panel.
 
-Analysis runs only when you click (ADR-006); nothing is sent to a
-provider on page load. Each click costs tokens on paid providers.
+Analysis runs only when you click **Analyze** (ADR-006); nothing is
+sent to a provider on page load or on toolbar clicks. Once a page has a
+result there is no way to re-run it until V0.8 adds **Re-analyze**,
+so repeated clicks cannot spend tokens.
 
 The bar and the panel live in one closed shadow root on
 `document.documentElement` (`#factit-bar-host`, `data-factit-state` =

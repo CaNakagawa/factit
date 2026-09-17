@@ -66,6 +66,44 @@ async function waitFor(fn, { tries = 50, interval = 200 } = {}) {
   return undefined;
 }
 
+
+// Real mouse click on a button (by its text) inside the closed shadow root,
+// using the DOM domain's shadow-piercing tree. Returns false if not found.
+async function clickShadowButton(page, text) {
+  await page.send("DOM.enable");
+  const tree = await page.send("DOM.getDocument", { depth: -1, pierce: true });
+  const find = (node) => {
+    if (node.nodeName === "BUTTON" && (node.children || []).some((c) => c.nodeValue === text)) return node;
+    for (const child of [...(node.children || []), ...(node.shadowRoots || [])]) { const h = find(child); if (h) return h; }
+    return null;
+  };
+  const button = find(tree.result.root);
+  if (!button) return false;
+  const box = await page.send("DOM.getBoxModel", { nodeId: button.nodeId });
+  const q = box.result.model.content;
+  const x = (q[0] + q[2]) / 2, y = (q[1] + q[5]) / 2;
+  for (const type of ["mousePressed", "mouseReleased"]) {
+    await page.send("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 });
+  }
+  return true;
+}
+
+async function shadowText(page, selectorClass) {
+  const tree = await page.send("DOM.getDocument", { depth: -1, pierce: true });
+  const collect = (node, out) => {
+    if (node.nodeType === 3) out.push(node.nodeValue);
+    for (const child of [...(node.children || []), ...(node.shadowRoots || [])]) collect(child, out);
+    return out;
+  };
+  const find = (node) => {
+    if ((node.attributes || []).some((a, i, arr) => a === "class" && String(arr[i + 1]).split(" ").includes(selectorClass))) return node;
+    for (const child of [...(node.children || []), ...(node.shadowRoots || [])]) { const h = find(child); if (h) return h; }
+    return null;
+  };
+  const node = find(tree.result.root);
+  return node ? collect(node, []).join(" ").replace(/\s+/g, " ") : "";
+}
+
 const failures = [];
 const check = (ok, label, detail = "") => {
   console.log(`${ok ? "OK  " : "FAIL"} ${label}${detail ? ": " + detail : ""}`);
@@ -237,26 +275,42 @@ try {
   });
   check(idleState.result?.result?.value === "idle", "bar idle on article load", idleState.result?.result?.value);
 
-  // Drive it exactly like the toolbar click does: from the worker, to the tab.
+  // Toolbar click (from the worker, like chrome.action.onClicked) must NOT analyze.
   const worker = await connect((await listTargets()).find((t) => t.type === "service_worker" && t.url.endsWith("/background/service-worker.js")).webSocketDebuggerUrl);
-  const analyzed = await worker.send("Runtime.evaluate", {
-    expression: `chrome.tabs.query({ active: true }).then((tabs) => chrome.tabs.sendMessage(tabs[0].id, { type: "FACTIT_RUN" }))`,
-    awaitPromise: true, returnByValue: true,
-  });
-  worker.close();
-  const runReply = analyzed.result?.result?.value;
-  const r = runReply && runReply.result;
+  const toggleExpr = `chrome.tabs.query({ active: true }).then((tabs) => chrome.tabs.sendMessage(tabs[0].id, { type: "FACTIT_TOGGLE" }))`;
+  const toggled = await worker.send("Runtime.evaluate", { expression: toggleExpr, awaitPromise: true, returnByValue: true });
+  await sleep(300);
+  check(providerCalls.length === callsBefore && toggled.result?.result?.value?.state === "idle", "toolbar click shows the bar without analyzing", JSON.stringify(toggled.result?.result?.value));
+
+  // Only a real click on the bar's Analyze button runs the analysis.
+  const clicked = await clickShadowButton(page, "Analyze");
+  await waitFor(() => consoleText().some((l) => l.startsWith("[Fact It] analysis result:")), { tries: 50 });
+  const analyzed = { result: { result: { value: clicked ? { ok: true, clicked: true } : undefined } } };
+  const resultLine = consoleText().find((l) => l.startsWith("[Fact It] analysis (AI_PRELIMINARY)"));
   check(
-    Boolean(r) && r.schema_version === "1.0" && r.analysis.verification_level === "AI_PRELIMINARY" &&
-      r.claims.length === 1 && r.flags[0].type === "EXTERNAL_VERIFICATION_REQUIRED" && r.meta.model === "fake-model" &&
-      /^[0-9a-f]{64}$/.test(r.meta.content_hash) && r.meta.prompt_version === "1.0.1",
-    "analysis round trip via content script",
-    r ? `support=${r.analysis.overall_factual_support} level=${r.analysis.verification_level} claims=${r.claims.length}` : JSON.stringify(runReply) + (analyzed.result?.exceptionDetails ? " exception=" + analyzed.result.exceptionDetails.exception?.description : ""),
+    Boolean(analyzed.result.result.value) && Boolean(resultLine) && /support=0\.6 /.test(resultLine) && /claims=1 /.test(resultLine) && /fake-model/.test(resultLine),
+    "analysis round trip via Analyze click",
+    resultLine || "no result line in console",
   );
   const analysisCall = providerCalls.find((c) => c.body.messages.some((m) => m.content.includes("Article to analyze")));
   check(Boolean(analysisCall) && analysisCall.body.messages[0].role === "system" && analysisCall.body.messages[1].content.includes("City council approves"),
     "article sent as data in the user turn, instructions in system");
-  check(providerCalls.length === callsBefore + 1, "exactly one provider call, caused by the run", `${providerCalls.length - callsBefore}`);
+  check(providerCalls.length === callsBefore + 1, "exactly one provider call, caused by the Analyze click", `${providerCalls.length - callsBefore}`);
+
+  // A second toolbar click toggles the panel, and clicking Analyze/bar again
+  // cannot re-run: still exactly one provider call.
+  const toggled2 = await worker.send("Runtime.evaluate", { expression: toggleExpr, awaitPromise: true, returnByValue: true });
+  await sleep(200);
+  const toggled3 = await worker.send("Runtime.evaluate", { expression: toggleExpr, awaitPromise: true, returnByValue: true });
+  await sleep(200);
+  const analyzeStillThere = await clickShadowButton(page, "Analyze");
+  await sleep(500);
+  check(
+    providerCalls.length === callsBefore + 1 && toggled2.result?.result?.value?.panel === "open" && toggled3.result?.result?.value?.panel === "closed" && analyzeStillThere === false,
+    "repeated toolbar clicks toggle the panel and never re-run",
+    `calls=${providerCalls.length - callsBefore} panel=${toggled2.result?.result?.value?.panel}/${toggled3.result?.result?.value?.panel} analyzeButton=${analyzeStillThere}`,
+  );
+  worker.close();
 
   // 8b. Bar shows the result; page scripts cannot read inside it.
   const barAfter = await page.send("Runtime.evaluate", {
@@ -266,39 +320,9 @@ try {
   check(barAfter.result?.result?.value?.state === "result" && barAfter.result?.result?.value?.shadow === true, "bar shows result in a closed shadow root", JSON.stringify(barAfter.result?.result?.value));
 
   // 9. Real click on "Details" inside the closed shadow root, then read the panel.
-  await page.send("DOM.enable");
-  const tree = await page.send("DOM.getDocument", { depth: -1, pierce: true });
-  const findByText = (node, text) => {
-    if (node.nodeName === "BUTTON" && (node.children || []).some((c) => c.nodeValue === text)) return node;
-    for (const child of [...(node.children || []), ...(node.shadowRoots || [])]) {
-      const hit = findByText(child, text);
-      if (hit) return hit;
-    }
-    return null;
-  };
-  const detailsButton = findByText(tree.result.root, "Details");
-  let panelText = "";
-  if (detailsButton) {
-    const box = await page.send("DOM.getBoxModel", { nodeId: detailsButton.nodeId });
-    const q = box.result.model.content;
-    const x = (q[0] + q[2]) / 2, y = (q[1] + q[5]) / 2;
-    for (const type of ["mousePressed", "mouseReleased"]) {
-      await page.send("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 });
-    }
-    await sleep(200);
-    const after = await page.send("DOM.getDocument", { depth: -1, pierce: true });
-    const collect = (node, out) => {
-      if (node.nodeType === 3) out.push(node.nodeValue);
-      for (const child of [...(node.children || []), ...(node.shadowRoots || [])]) collect(child, out);
-      return out;
-    };
-    const panelNode = (function find(node) {
-      if (node.nodeName === "SECTION" && (node.attributes || []).includes("panel")) return node;
-      for (const child of [...(node.children || []), ...(node.shadowRoots || [])]) { const h = find(child); if (h) return h; }
-      return null;
-    })(after.result.root);
-    panelText = panelNode ? collect(panelNode, []).join(" ").replace(/\s+/g, " ") : "";
-  }
+  const detailsButton = await clickShadowButton(page, "Details");
+  await sleep(200);
+  const panelText = detailsButton ? await shadowText(page, "panel") : "";
   const panelState = await page.send("Runtime.evaluate", { expression: "document.getElementById('factit-bar-host')?.dataset.factitPanel", returnByValue: true });
   check(
     Boolean(detailsButton) && panelState.result?.result?.value === "open" &&

@@ -6,9 +6,10 @@
 // which provide the globals used here.
 //
 // Extracts and normalizes the article locally and shows the Fact It bar
-// on article pages. Analysis runs on demand (toolbar click or the bar's
-// Analyze button): the ArticleDocument goes to the background worker,
-// the validated AnalysisResult comes back and the bar renders it.
+// on article pages. Analysis runs only when the user clicks the bar's
+// Analyze button: the ArticleDocument goes to the background worker, the
+// validated AnalysisResult comes back and the bar/panel render it. The
+// toolbar button only shows the bar or toggles the panel.
 
 (() => {
   const deps = { Readability, isProbablyReaderable };
@@ -44,6 +45,7 @@
   let bar = null;
   let panel = null;
   let running = false;
+  let lastResult = null; // kept so the bar can be restored after dismiss without re-running
 
   function ensureBar() {
     if (!bar || !bar.host.isConnected) {
@@ -53,14 +55,35 @@
         onDetails: () => panel && panel.toggle(),
       });
       panel = FactIt.createPanel(bar.root);
+      if (lastResult) {
+        panel.setResult(lastResult);
+        bar.setResult(lastResult);
+      }
     }
     return bar;
+  }
+
+  // Toolbar click: never analyzes. Shows the bar (idle or last result) and,
+  // when a result exists, toggles the details panel.
+  async function toggleUi() {
+    if (running) return { ok: true, state: "running" };
+    const hadBar = Boolean(bar && bar.host.isConnected);
+    const ui = ensureBar();
+    if (lastResult) {
+      if (hadBar) panel.toggle();
+      return { ok: true, state: "result", panel: panel.isOpen() ? "open" : "closed" };
+    }
+    const article = await buildArticleDocument();
+    if (!article) ui.setNoArticle();
+    else if (ui.host.dataset.factitState !== "idle") ui.setIdle();
+    return { ok: true, state: ui.host.dataset.factitState };
   }
 
   // Extract, hand the document to the background for analysis, render
   // and log the outcome. Returns the reply so callers can inspect it.
   async function runAnalysis() {
     if (running) return { ok: false, error: { kind: "busy", message: "Analysis already running." } };
+    if (lastResult) return { ok: true, result: lastResult, cached: true }; // no re-run without an explicit Re-analyze (V0.8)
     running = true;
     const ui = ensureBar();
     try {
@@ -79,6 +102,7 @@
           `[Fact It] analysis (${r.analysis.verification_level}) support=${r.analysis.overall_factual_support} confidence=${r.analysis.confidence} claims=${r.claims.length} flags=${r.flags.length} framing=${r.framing.detected ? r.framing.type + "/" + r.framing.strength : "none"} via ${r.meta.provider}/${r.meta.model}`,
         );
         console.log("[Fact It] analysis result:", r);
+        lastResult = r;
         panel.setResult(r);
         ui.setResult(r);
       } else {
@@ -100,8 +124,8 @@
       buildArticleDocument().then((article) => sendResponse({ type: "FACTIT_ARTICLE", article }));
       return true; // async response
     }
-    if (message.type === "FACTIT_RUN") {
-      runAnalysis().then(sendResponse);
+    if (message.type === "FACTIT_TOGGLE") {
+      toggleUi().then(sendResponse);
       return true;
     }
     return false;

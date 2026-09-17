@@ -53,6 +53,12 @@ Notes:
   which motivated the 1.0.1 conclusion format and the collapsed
   details.
 
+Fix 0.7.1: the toolbar button used to run the analysis and re-ran it
+on every click. It now only shows the bar / toggles the panel; only
+the bar's Analyze button calls the provider, and a page with a result
+cannot be re-run until Re-analyze (V0.8). Smoke test asserts one
+provider call across repeated clicks.
+
 ## Follow-ups noted (not in this milestone)
 
 - Extraction quality: on heise.de Readability kept a related-article

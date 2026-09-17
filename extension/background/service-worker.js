@@ -3,8 +3,11 @@
 // Privileged extension context. Provider requests are made here so that
 // API keys never reach content scripts or the webpage. Orchestrates:
 //
-//   toolbar click -> FACTIT_RUN -> content script extracts
-//     -> FACTIT_ANALYZE (article) -> provider -> validated result -> reply
+//   toolbar click -> FACTIT_TOGGLE -> content script shows the bar / panel
+//   bar "Analyze" click -> FACTIT_ANALYZE (article) -> provider
+//     -> validated result -> reply
+//
+// Only the Analyze button ever triggers a provider call.
 
 import { createSettingsStore } from "../storage/settings.js";
 import { createProvider, ProviderError } from "../providers/provider.js";
@@ -16,10 +19,11 @@ chrome.runtime.onInstalled.addListener((details) => {
   console.log(`[Fact It] service worker installed (${details.reason})`);
 });
 
-// Analysis is on demand: the user clicks the toolbar button (ADR-006).
+// The toolbar button only reveals the bar or toggles the panel; it never
+// starts an analysis, so an accidental click cannot spend tokens (ADR-006).
 chrome.action.onClicked.addListener((tab) => {
   if (!tab || !tab.id) return;
-  chrome.tabs.sendMessage(tab.id, { type: "FACTIT_RUN" }).catch(() => {
+  chrome.tabs.sendMessage(tab.id, { type: "FACTIT_TOGGLE" }).catch(() => {
     // No content script on this page (chrome://, store, file://, ...).
   });
 });

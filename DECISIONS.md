@@ -173,10 +173,13 @@ only skim.
 
 ### Decision
 
-Analysis starts only when the user clicks the Fact It toolbar button
-(`action`). The background worker asks the content script for the
-ArticleDocument, runs the analysis and returns the result. Nothing is
-sent to a provider on page load.
+Analysis starts only when the user clicks **Analyze** in the Fact It
+bar. The toolbar button (`action`) never analyzes: it shows the bar or
+toggles the details panel, so an accidental click cannot spend tokens
+(amended 2026-09-17 after a live run re-analyzed on a second toolbar
+click). Nothing is sent to a provider on page load. A page that already
+has a result is not re-analyzed unless the user explicitly asks
+(Re-analyze, V0.8).
 
 ### Consequences
 
