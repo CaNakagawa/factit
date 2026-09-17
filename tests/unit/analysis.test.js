@@ -105,6 +105,16 @@ test("parseModelJson accepts bare, fenced and prose-wrapped JSON", () => {
   assert.deepEqual(parseModelJson("  \n{\"a\": {\"b\": [1,2]}}"), { a: { b: [1, 2] } });
 });
 
+test("parseModelJson survives trailing prose with braces, stray braces and multiple objects", () => {
+  const obj = { analysis: { a: 1 }, summary: "x }" };
+  const json = JSON.stringify(obj);
+  assert.deepEqual(parseModelJson(`${json}\n\nNote: the schema { above } is complete.`), obj);
+  assert.deepEqual(parseModelJson(`Sure! {not json} ${json}`), obj);
+  assert.deepEqual(parseModelJson(`${json}\n${JSON.stringify({ second: true })}`), obj);
+  assert.deepEqual(parseModelJson(`\`\`\`json\n${json}\n\`\`\`\nExplanation with } brace`), obj);
+  assert.deepEqual(parseModelJson(`{"s":"escaped \\" quote } inside","n":1} trailing }`), { s: 'escaped " quote } inside', n: 1 });
+});
+
 test("parseModelJson rejects non-objects and garbage", () => {
   assert.equal(parseModelJson("[1,2]"), null);
   assert.equal(parseModelJson("\"string\""), null);
@@ -231,7 +241,7 @@ test("analyzeArticle: happy path attaches meta and uses the analysis token budge
 
 test("analyzeArticle: malformed, truncated and refused outputs become AnalysisErrors", async () => {
   await assert.rejects(analyzeArticle(articleDocument(), fakeProvider("I cannot produce JSON, sorry.")),
-    (e) => e instanceof AnalysisError && e.kind === "invalid_output");
+    (e) => e instanceof AnalysisError && e.kind === "invalid_output" && /raw\(\d+\): I cannot produce JSON/.test(e.details[0]));
   await assert.rejects(analyzeArticle(articleDocument(), fakeProvider('{"analysis": {"overall_', { finish: "length" })),
     (e) => e.kind === "truncated_output");
   await assert.rejects(analyzeArticle(articleDocument(), fakeProvider("", { finish: "refusal" })),

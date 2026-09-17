@@ -114,6 +114,10 @@ test("error state: Retry for transient errors, Open settings for config/auth; me
 
   bar.setError(undefined);
   assert.match(text(bar), /unknown/);
+
+  bar.setError({ kind: "extension_reloaded", message: "Fact It was updated. Reload this page and try again." });
+  assert.equal(bar.root.querySelectorAll("button:not(.close)").length, 0, "no Retry when the extension context is gone");
+  assert.match(text(bar), /Reload this page/);
 });
 
 test("dismiss removes the bar from the page", () => {

@@ -28,6 +28,13 @@ export class AnalysisError extends Error {
   }
 }
 
+// Head and tail of the raw model text for diagnostics (console only).
+function rawSnippet(text) {
+  const t = typeof text === "string" ? text.replace(/\s+/g, " ").trim() : "";
+  if (t.length <= 400) return `raw(${t.length}): ${t}`;
+  return `raw(${t.length}): ${t.slice(0, 250)} … ${t.slice(-150)}`;
+}
+
 /**
  * @param {object} articleDocument ArticleDocument
  * @param {{ id: string, model: string, complete: Function }} provider
@@ -44,10 +51,11 @@ export async function analyzeArticle(articleDocument, provider, options = {}) {
 
   const parsed = parseModelJson(completion.text);
   if (!parsed) {
+    const snippet = rawSnippet(completion.text);
     if (completion.finish === "length") {
-      throw new AnalysisError("truncated_output", "The model's answer was cut off before it was complete.");
+      throw new AnalysisError("truncated_output", "The model's answer was cut off before it was complete.", [snippet]);
     }
-    throw new AnalysisError("invalid_output", "The model did not return valid JSON.");
+    throw new AnalysisError("invalid_output", "The model did not return valid JSON.", [snippet]);
   }
 
   const validated = validateAnalysis(parsed);

@@ -188,7 +188,7 @@
         const nodes = [el("span", "text", `Analysis failed (${kind}): ${message}`)];
         if (kind === "config" || kind === "auth") {
           nodes.push(actionButton("Open settings", handlers.onOpenSettings));
-        } else {
+        } else if (kind !== "extension_reloaded") {
           nodes.push(actionButton("Retry", handlers.onAnalyze));
         }
         render("error", ...nodes);

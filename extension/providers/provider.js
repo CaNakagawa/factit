@@ -40,7 +40,7 @@ export function getProviderDefinition(id) {
  * Build a provider instance from settings.
  *
  * @param {{ provider: string, apiKey: string, model: string, baseUrl: string }} settings
- * @param {{ fetch?: typeof fetch }} [options] fetch injection for tests
+ * @param {{ fetch?: typeof fetch, sleep?: Function }} [options] injection for tests
  */
 export function createProvider(settings, options = {}) {
   const definition = getProviderDefinition(settings && settings.provider);
@@ -58,7 +58,7 @@ export function createProvider(settings, options = {}) {
     async complete(request) {
       const req = normalizeRequest(request, model);
       const { url, headers, body } = definition.buildRequest(config, req);
-      const response = await send(fetchImpl, url, headers, body, definition.id, config.apiKey);
+      const response = await send(fetchImpl, url, headers, body, definition.id, config.apiKey, { sleep: options.sleep });
       return definition.parseResponse(response, definition.id, req.model);
     },
   };

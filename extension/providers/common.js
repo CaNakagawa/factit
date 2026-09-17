@@ -10,6 +10,11 @@
 
 export const DEFAULT_MAX_TOKENS = 4096;
 export const REQUEST_TIMEOUT_MS = 60_000;
+// One automatic retry for transient failures. A rejected request produced
+// no output, so retrying does not double the token cost.
+const RETRY_STATUSES = new Set([429, 500, 502, 503, 504, 529]);
+const RETRY_DELAY_MS = 1500;
+const RETRY_DELAY_MAX_MS = 5000;
 const MAX_ERROR_MESSAGE_CHARS = 200;
 
 /** Error kinds the rest of the extension can act on. */
@@ -44,16 +49,26 @@ export class ProviderError extends Error {
   }
 }
 
-// One HTTP round trip with timeout, status mapping and defensive parsing.
-export async function send(fetchImpl, url, headers, body, providerId, apiKey) {
+// One HTTP round trip with timeout, status mapping and defensive parsing,
+// plus a single retry on transient statuses.
+export async function send(fetchImpl, url, headers, body, providerId, apiKey, options = {}) {
+  const sleep = options.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const request = () => fetchImpl(url, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...headers },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+
   let response;
   try {
-    response = await fetchImpl(url, {
-      method: "POST",
-      headers: { "content-type": "application/json", ...headers },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
+    response = await request();
+    if (RETRY_STATUSES.has(response.status)) {
+      const retryAfter = Number(response.headers && typeof response.headers.get === "function" ? response.headers.get("retry-after") : NaN);
+      const delay = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, RETRY_DELAY_MAX_MS) : RETRY_DELAY_MS;
+      await sleep(delay);
+      response = await request();
+    }
   } catch (error) {
     throw new ProviderError(
       ERROR_KINDS.NETWORK,

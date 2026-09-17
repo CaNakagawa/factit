@@ -13,6 +13,7 @@ import {
 import { validateBaseUrl } from "../../extension/providers/openai-compatible.js";
 
 const KEY = "sk-test-1234567890abcdef";
+const noSleep = async () => {};
 
 // Records the request and returns a canned response.
 function fakeFetch(status, body, { raw = false } = {}) {
@@ -172,7 +173,7 @@ test("http status codes map to error kinds and API messages are surfaced", async
     [529, ERROR_KINDS.SERVER],
   ];
   for (const [status, kind] of cases) {
-    const provider = createProvider({ provider: "openai", apiKey: KEY }, { fetch: fakeFetch(status, { error: { message: `boom ${status}` } }) });
+    const provider = createProvider({ provider: "openai", apiKey: KEY }, { fetch: fakeFetch(status, { error: { message: `boom ${status}` } }), sleep: noSleep });
     await assert.rejects(provider.complete({ system: "s", input: "i" }), (e) => {
       assert.ok(e instanceof ProviderError);
       assert.equal(e.kind, kind, `status ${status}`);
@@ -217,7 +218,7 @@ test("API keys never appear in error messages", async () => {
 });
 
 test("error messages from providers are length-capped", async () => {
-  const provider = createProvider({ provider: "openai", apiKey: KEY }, { fetch: fakeFetch(500, { error: { message: "x".repeat(5000) } }) });
+  const provider = createProvider({ provider: "openai", apiKey: KEY }, { fetch: fakeFetch(500, { error: { message: "x".repeat(5000) } }), sleep: noSleep });
   await assert.rejects(provider.complete({ system: "s", input: "i" }), (e) => e.message.length <= 201);
 });
 
@@ -225,4 +226,38 @@ test("complete() validates its request", async () => {
   const provider = createProvider({ provider: "openai", apiKey: KEY }, { fetch: fakeFetch(200, openaiReply) });
   await assert.rejects(provider.complete({ input: "no system" }), (e) => e.kind === ERROR_KINDS.CONFIG);
   await assert.rejects(provider.complete({ system: "s", input: 5 }), (e) => e.kind === ERROR_KINDS.CONFIG);
+});
+
+test("transient statuses are retried once, honouring retry-after (capped)", async () => {
+  const seq = (statuses) => {
+    let i = 0;
+    const fn = async (url, init) => {
+      const status = statuses[Math.min(i++, statuses.length - 1)];
+      return {
+        ok: status < 300, status,
+        headers: { get: (h) => (h === "retry-after" && status === 429 ? "1" : null) },
+        text: async () => JSON.stringify(status < 300 ? openaiReply : { error: { message: `err ${status}` } }),
+      };
+    };
+    fn.count = () => i;
+    return fn;
+  };
+
+  const sleeps = [];
+  const { send } = await import("../../extension/providers/common.js");
+  const ok = await send(seq([503, 200]), "https://x/", {}, {}, "openai", KEY, { sleep: async (ms) => sleeps.push(ms) });
+  assert.equal(ok.choices[0].message.content, "OK");
+  assert.deepEqual(sleeps, [1500]);
+
+  const rate = seq([429, 200]);
+  await send(rate, "https://x/", {}, {}, "openai", KEY, { sleep: async (ms) => sleeps.push(ms) });
+  assert.equal(sleeps[1], 1000, "retry-after: 1s");
+
+  const twice = seq([503, 503]);
+  await assert.rejects(send(twice, "https://x/", {}, {}, "openai", KEY, { sleep: async () => {} }), (e) => e.kind === ERROR_KINDS.SERVER);
+  assert.equal(twice.count(), 2, "exactly one retry");
+
+  const noRetry = seq([401, 200]);
+  await assert.rejects(send(noRetry, "https://x/", {}, {}, "openai", KEY, { sleep: async () => {} }), (e) => e.kind === ERROR_KINDS.AUTH);
+  assert.equal(noRetry.count(), 1, "4xx (except 429) is not retried");
 });

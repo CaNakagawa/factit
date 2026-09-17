@@ -103,7 +103,14 @@
         return { ok: false, error: { kind: "no_article", message: "No article detected on this page." } };
       }
       console.log(`[Fact It] analysis requested${force ? " (re-analyze)" : ""}:`, summarize(article));
-      const reply = await chrome.runtime.sendMessage({ type: "FACTIT_ANALYZE", article, force });
+      let reply;
+      try {
+        reply = await chrome.runtime.sendMessage({ type: "FACTIT_ANALYZE", article, force });
+      } catch (error) {
+        // Typically "Extension context invalidated": the extension was
+        // reloaded while this page kept the old content script.
+        reply = { ok: false, error: { kind: "extension_reloaded", message: "Fact It was updated. Reload this page and try again." } };
+      }
       if (reply && reply.ok) {
         const r = reply.result;
         console.log(

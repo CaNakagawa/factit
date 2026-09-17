@@ -40,10 +40,34 @@ export function parseModelJson(text) {
   const direct = attempt(s);
   if (direct) return direct;
 
-  const start = s.indexOf("{");
-  const end = s.lastIndexOf("}");
-  if (start === -1 || end <= start) return null;
-  return attempt(s.slice(start, end + 1));
+  // Scan for balanced top-level objects (string- and escape-aware) so
+  // trailing prose, stray braces or a second object cannot break parsing.
+  // The first candidate that parses wins.
+  for (let start = s.indexOf("{"); start !== -1; start = s.indexOf("{", start + 1)) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < s.length; i++) {
+      const ch = s[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === "\\") escaped = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') inString = true;
+      else if (ch === "{") depth++;
+      else if (ch === "}") {
+        depth--;
+        if (depth === 0) {
+          const parsed = attempt(s.slice(start, i + 1));
+          if (parsed) return parsed;
+          break; // this candidate is unbalanced/invalid; try the next "{"
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function clamp01(value, fallback = 0) {

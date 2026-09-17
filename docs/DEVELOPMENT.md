@@ -103,9 +103,9 @@ Fact It bar and analysis:
    supported, Insufficient support), never verdicts.
 3. The page console still logs `[Fact It] analysis result:` with the
    full AnalysisResult (docs/ANALYSIS_SCHEMA.md).
-4. Errors show in the bar with **Retry**, or **Open settings** when the
+5. Errors show in the bar with **Retry**, or **Open settings** when the
    provider is not configured. ✕ hides the bar for this page load.
-5. After a result, click **Details** (or anywhere on the bar) to open
+6. After a result, click **Details** (or anywhere on the bar) to open
    the panel. It opens compact: support and confidence, the notice
    that no external sources were consulted, the **Conclusion**, a
    **Show detailed analysis** button, and one line of provenance
