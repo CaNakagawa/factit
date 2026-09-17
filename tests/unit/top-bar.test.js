@@ -10,7 +10,7 @@ const dom = new JSDOM("<!DOCTYPE html><html><head></head><body><p>page</p></body
 globalThis.document = dom.window.document;
 globalThis.HTMLElement = dom.window.HTMLElement;
 loadClassicScript(new URL("../../extension/ui/top-bar.js", import.meta.url));
-const { createTopBar, supportLabel, confidenceLabel } = globalThis.FactIt;
+const { createTopBar, supportLabel, supportColor, confidenceLabel } = globalThis.FactIt;
 
 function result(overrides = {}) {
   return {
@@ -128,4 +128,27 @@ test("cached results are marked in the bar", () => {
   assert.match(text(bar), /from cache · moderate confidence/);
   bar.setResult(result());
   assert.doesNotMatch(text(bar), /from cache/);
+});
+
+test("meter color follows the support thresholds, blue to red, and only support", () => {
+  assert.equal(supportColor(0.9), "#3b82f6");
+  assert.equal(supportColor(0.75), "#3b82f6");
+  assert.equal(supportColor(0.6), "#f59e0b");
+  assert.equal(supportColor(0.3), "#f97316");
+  assert.equal(supportColor(0.1), "#ef4444");
+  // Same boundaries as the labels.
+  for (const s of [0, 0.24, 0.25, 0.49, 0.5, 0.74, 0.75, 1]) {
+    const pairs = { "#3b82f6": "Well supported", "#f59e0b": "Partially supported", "#f97316": "Weakly supported", "#ef4444": "Insufficient support" };
+    assert.equal(pairs[supportColor(s)], supportLabel(s));
+  }
+
+  const bar = createTopBar();
+  bar.setResult(result({ analysis: { overall_factual_support: 0.2, confidence: 0.9 }, framing: { detected: true, type: "POLITICAL", strength: "HIGH" } }));
+  const fill = bar.root.querySelector(".meter > span");
+  assert.equal(fill.style.background, "rgb(239, 68, 68)");
+  bar.setResult(result({ analysis: { overall_factual_support: 0.9, confidence: 0.1 }, framing: { detected: true, type: "POLITICAL", strength: "HIGH" } }));
+  assert.equal(bar.root.querySelector(".meter > span").style.background, "rgb(59, 130, 246)", "strong framing does not change the color");
+
+  bar.setResult(result({ claims: [] }));
+  assert.equal(bar.root.querySelector(".meter > span").style.background, "rgb(154, 165, 177)", "no claims -> neutral gray");
 });

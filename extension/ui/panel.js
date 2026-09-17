@@ -76,16 +76,18 @@
 
   function renderOverview(result) {
     const support = Number(result.analysis.overall_factual_support) || 0;
+    const hasClaims = Array.isArray(result.claims) && result.claims.length > 0;
+    const color = hasClaims ? root.FactIt.supportColor(support) : "#9aa5b1";
     const wrap = el("div");
     const meter = el("span", "meter");
     const fill = el("span");
     fill.style.width = pct(support);
+    fill.style.background = color;
     meter.append(fill);
     const line = el("p");
-    line.append(
-      meter,
-      el("strong", "", `Factual support: ${root.FactIt.supportLabel(support)} (${pct(support)})`),
-    );
+    const strong = el("strong", "", `Factual support: ${root.FactIt.supportLabel(support)} (${pct(support)})`);
+    strong.style.color = color;
+    line.append(meter, strong);
     wrap.append(
       line,
       el("p", "muted", `Model confidence: ${root.FactIt.confidenceLabel(Number(result.analysis.confidence) || 0)} (${pct(result.analysis.confidence)})`),

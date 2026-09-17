@@ -23,6 +23,16 @@
     return "Insufficient support";
   }
 
+  // Color follows the same thresholds as supportLabel, so the meter and the
+  // wording always agree: blue (well supported) -> amber -> orange -> red
+  // (insufficient). Driven by factual support only; never by framing.
+  function supportColor(score) {
+    if (score >= 0.75) return "#3b82f6";
+    if (score >= 0.5) return "#f59e0b";
+    if (score >= 0.25) return "#f97316";
+    return "#ef4444";
+  }
+
   function confidenceLabel(confidence) {
     if (confidence >= 0.7) return "high confidence";
     if (confidence >= 0.4) return "moderate confidence";
@@ -47,6 +57,7 @@
     @media (max-width: 700px) { .detail, .tag.long { display: none; } }
     .meter { width: 90px; height: 6px; border-radius: 3px; background: #3e4c59; overflow: hidden; flex: none; }
     .meter > span { display: block; height: 100%; width: 0; background: #7fb3c8; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
     .tag { font-size: 11px; color: #cbd2d9; border: 1px solid #52606d; border-radius: 3px; padding: 2px 6px; white-space: nowrap; }
     button {
       all: initial; cursor: pointer; font: 12px system-ui, sans-serif; color: #f5f7fa;
@@ -140,11 +151,15 @@
         const claims = Array.isArray(result.claims) ? result.claims.length : 0;
         const flags = Array.isArray(result.flags) ? result.flags.length : 0;
 
+        const color = claims === 0 ? "#9aa5b1" : supportColor(support);
         const meter = el("span", "meter");
         const fill = el("span");
         fill.style.width = `${Math.round(support * 100)}%`;
+        fill.style.background = color;
         meter.append(fill);
         meter.title = `Factual support ${Math.round(support * 100)}%`;
+        const dot = el("span", "dot");
+        dot.style.background = color;
 
         const label = claims === 0
           ? "No verifiable claims found"
@@ -155,6 +170,7 @@
         if (options.cached) detail = `from cache · ${detail}`;
 
         const nodes = [
+          dot,
           meter,
           el("span", "text label", label),
           el("span", "text muted detail", detail),
@@ -187,5 +203,5 @@
     return api;
   }
 
-  root.FactIt = Object.assign(root.FactIt || {}, { createTopBar, supportLabel, confidenceLabel });
+  root.FactIt = Object.assign(root.FactIt || {}, { createTopBar, supportLabel, supportColor, confidenceLabel });
 })(globalThis);
