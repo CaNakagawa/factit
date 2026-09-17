@@ -1,6 +1,6 @@
 # Fact It - AnalysisResult
 
-Schema Version: 1.1
+Schema Version: 1.2
 
 Produced by `analyzeArticle` (extension/analysis/engine.js) from the
 model's JSON after validation (extension/analysis/validator.js).
@@ -12,7 +12,8 @@ Enumerations live in extension/analysis/schema.js.
   "analysis": {
     "overall_factual_support": 0.0,
     "confidence": 0.0,
-    "verification_level": "AI_PRELIMINARY"
+    "verification_level": "AI_PRELIMINARY",
+    "rationale": ""
   },
   "claims": [
     {
@@ -59,6 +60,11 @@ until validated. The validator:
 Strings are plain text. The UI must render them as text, never as HTML.
 
 ## Factual Support
+
+Schema 1.2 adds `analysis.rationale` (string, max 400): one or two
+plain sentences on why the support is this high or low, naming what in
+the article does the supporting or what is lacking. Empty when absent
+(older results).
 
 `overall_factual_support` represents factual support only: how well the
 article's factual claims are supported within the article.

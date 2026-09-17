@@ -38,6 +38,14 @@ real browser with a real key on the packaged zip, then tag v1.0.0.
 
 ## After V1.0
 
+### 1.1.0 (2026-09-18, user requests)
+
+- analysis.rationale + explanations for supported claims
+  (prompt 1.2.0 / schema 1.2)
+- Token usage and estimated cost per request in the panel; price
+  settings (Anthropic pre-filled), running totals with reset on the
+  settings page
+
 Not scheduled. Candidates, in no order:
 
 - UI language following the browser locale (strings are English)

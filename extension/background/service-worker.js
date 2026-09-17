@@ -11,11 +11,28 @@
 
 import { createSettingsStore } from "../storage/settings.js";
 import { createAnalysisCache } from "../storage/cache.js";
+import { createUsageTotals } from "../storage/usage.js";
+import { estimateCost } from "../providers/pricing.js";
 import { createProvider, ProviderError } from "../providers/provider.js";
 import { analyzeArticle, AnalysisError, articleDocumentProblem } from "../analysis/engine.js";
 
 const settings = createSettingsStore();
 const cache = createAnalysisCache();
+const usageTotals = createUsageTotals();
+
+// Estimated cost for a usage block under the current price settings, or
+// null when prices are not configured. Computed at reply time so cached
+// results also get a figure once prices are set.
+async function costFor(usage) {
+  const s = await settings.get();
+  return estimateCost(usage, { input: s.inputPricePerM, output: s.outputPricePerM });
+}
+
+async function recordUsage(usage) {
+  const cost = await costFor(usage);
+  await usageTotals.add(usage, cost ? cost.usd : null);
+  return cost;
+}
 
 chrome.runtime.onInstalled.addListener((details) => {
   console.log(`[Fact It] service worker installed (${details.reason})`);
@@ -71,6 +88,7 @@ async function testProvider() {
     input: "ping",
     maxTokens: 16,
   });
+  const cost = await recordUsage(result.usage);
   return {
     ok: true,
     provider: provider.id,
@@ -78,6 +96,7 @@ async function testProvider() {
     finish: result.finish,
     sample: result.text.slice(0, 40),
     usage: result.usage,
+    cost,
   };
 }
 
@@ -87,18 +106,21 @@ async function analyze(article, force) {
   if (problem) throw new AnalysisError("invalid_output", `Invalid article document: ${problem}.`);
   if (!force) {
     const hit = await cache.get(article.content_hash);
-    if (hit) return { ok: true, result: hit.result, cached: true, cached_at: hit.cached_at };
+    if (hit) return { ok: true, result: hit.result, cached: true, cached_at: hit.cached_at, cost: await costFor(hit.result.meta.usage) };
   }
   const provider = createProvider(await settings.get());
   const result = await analyzeArticle(article, provider);
   const { cached_at } = await cache.put(article.content_hash, result);
-  return { ok: true, result, cached: false, cached_at };
+  const cost = await recordUsage(result.meta.usage);
+  return { ok: true, result, cached: false, cached_at, cost };
 }
 
 // Cache lookup by hash only; never triggers a provider call.
 async function lookup(hash) {
   const hit = await cache.get(typeof hash === "string" ? hash : "");
-  return hit ? { ok: true, result: hit.result, cached: true, cached_at: hit.cached_at } : { ok: true, result: null };
+  return hit
+    ? { ok: true, result: hit.result, cached: true, cached_at: hit.cached_at, cost: await costFor(hit.result.meta.usage) }
+    : { ok: true, result: null };
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -139,6 +161,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "FACTIT_CACHE_CLEAR":
       if (!isExtensionPage(sender)) return false;
       cache.clear().then(sendResponse).catch(() => sendResponse({ removed: 0 }));
+      return true;
+
+    case "FACTIT_USAGE_STATS":
+      if (!isExtensionPage(sender)) return false;
+      usageTotals.get().then(sendResponse).catch(() => sendResponse(null));
+      return true;
+
+    case "FACTIT_USAGE_RESET":
+      if (!isExtensionPage(sender)) return false;
+      usageTotals.reset().then(sendResponse).catch(() => sendResponse(null));
       return true;
 
     case "FACTIT_OPEN_SETTINGS":

@@ -3,9 +3,9 @@
 // Enumerations and limits from docs/ANALYSIS_SCHEMA.md. Used by the prompt
 // (to describe the expected output) and by the validator (to enforce it).
 
-export const ANALYSIS_SCHEMA_VERSION = "1.1";
+export const ANALYSIS_SCHEMA_VERSION = "1.2";
 // Older results the cache may still hold; the validator upgrades them.
-export const ACCEPTED_SCHEMA_VERSIONS = Object.freeze(["1.0", "1.1"]);
+export const ACCEPTED_SCHEMA_VERSIONS = Object.freeze(["1.0", "1.1", "1.2"]);
 
 // The only verification level the extension can produce. Future evidence
 // engine results would introduce a different value; the validator always
@@ -69,6 +69,7 @@ export const LIMITS = Object.freeze({
   MAX_EXPLANATION_CHARS: 600,
   MAX_SUMMARY_CHARS: 1200,
   MAX_SIDE_BY_SIDE_CHARS: 300,
+  MAX_RATIONALE_CHARS: 400,
 });
 
 // Human-readable shape handed to the model. Kept in one place so the
@@ -76,7 +77,8 @@ export const LIMITS = Object.freeze({
 export const OUTPUT_SHAPE = `{
   "analysis": {
     "overall_factual_support": <number 0.0-1.0>,
-    "confidence": <number 0.0-1.0>
+    "confidence": <number 0.0-1.0>,
+    "rationale": "<1-2 plain sentences: why the article's claims are this well or poorly supported, pointing at what in the article supports or fails to support them; max ${LIMITS.MAX_RATIONALE_CHARS} chars>"
   },
   "claims": [
     {

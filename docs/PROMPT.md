@@ -2,7 +2,7 @@
 
 Prompt versioning is mandatory.
 
-Current version: 1.1.0 (`PROMPT_VERSION` in extension/analysis/prompt.js).
+Current version: 1.2.0 (`PROMPT_VERSION` in extension/analysis/prompt.js).
 Bump it on any wording change; cached results are keyed on it.
 
 ## Input Separation
@@ -68,6 +68,8 @@ Never confuse the two.
 
 ## Changelog
 
+- 1.2.0 - analysis.rationale (why the support is what it is); every
+  classification explained, including SUPPORTED claims (schema 1.2).
 - 1.1.0 - per claim: basis (evidence / attribution / opinion /
   assumption), missing_information, implied (schema 1.1).
 - 1.0.1 - summary is a short conclusion (3-6 sentences, ~700 chars, no

@@ -49,6 +49,7 @@
   let running = false;
   let lastResult = null; // kept so the bar can be restored after dismiss without re-running
   let lastCached = false;
+  let lastCost = null;
 
   function ensureBar() {
     if (!bar || !bar.host.isConnected) {
@@ -58,15 +59,16 @@
         onDetails: () => panel && panel.toggle(),
       });
       panel = FactIt.createPanel(bar.root);
-      if (lastResult) showResult(lastResult, lastCached);
+      if (lastResult) showResult(lastResult, lastCached, lastCost);
     }
     return bar;
   }
 
-  function showResult(result, cached) {
+  function showResult(result, cached, cost) {
     lastResult = result;
     lastCached = cached;
-    panel.setResult(result, { cached, onReanalyze: () => runAnalysis({ force: true }) });
+    lastCost = cost || null;
+    panel.setResult(result, { cached, cost: lastCost, onReanalyze: () => runAnalysis({ force: true }) });
     bar.setResult(result, { cached });
   }
 
@@ -120,7 +122,7 @@
           `[Fact It] analysis (${r.analysis.verification_level}${reply.cached ? ", cached" : ""}) support=${r.analysis.overall_factual_support} confidence=${r.analysis.confidence} claims=${r.claims.length} flags=${r.flags.length} framing=${r.framing.detected ? r.framing.type + "/" + r.framing.strength : "none"} via ${r.meta.provider}/${r.meta.model}`,
         );
         console.log("[Fact It] analysis result:", r);
-        showResult(r, Boolean(reply.cached));
+        showResult(r, Boolean(reply.cached), reply.cost);
       } else {
         const err = (reply && reply.error) || { kind: "unknown", message: "No reply from background." };
         // Details (e.g. the raw model text for invalid_output) go into the
@@ -161,7 +163,7 @@
       const reply = await chrome.runtime.sendMessage({ type: "FACTIT_LOOKUP", content_hash: article.content_hash });
       if (reply && reply.ok && reply.result) {
         console.log("[Fact It] cached analysis found:", reply.cached_at);
-        showResult(reply.result, true);
+        showResult(reply.result, true, reply.cost);
       }
     } catch {
       // Background unavailable; stay idle.

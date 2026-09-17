@@ -11,7 +11,7 @@
 
 import { OUTPUT_SHAPE } from "./schema.js";
 
-export const PROMPT_VERSION = "1.1.0";
+export const PROMPT_VERSION = "1.2.0";
 
 const MAX_LINKS_IN_PROMPT = 20;
 
@@ -25,8 +25,8 @@ Responsibilities:
 4b. For each claim also state its basis (what it rests on in the article: EVIDENCE shown, ATTRIBUTION to a source without evidence, the author's or a subject's OPINION, or an ASSUMPTION), what information is missing to establish it, and - when the passage leads the reader toward a conclusion its information does not establish - that implied conclusion, in the field "implied". Be concrete: name the missing document, number, source, date or comparison. Leave "missing_information" and "implied" as empty strings when there is nothing to report.
 5. Raise flags for missing context, unsupported accusations, statistics used misleadingly, headline/content mismatch, unattributed or weak sourcing, contradictions, selective evidence, and anything a reader should verify externally.
 6. Assess framing (political, ideological, commercial, ...) separately. Framing is NOT falsehood: a strongly framed article can be factually accurate, and a neutral one can be wrong. Never let framing lower overall_factual_support.
-7. overall_factual_support reflects only how well the article's factual claims are supported. It must not reflect political, ideological or religious neutrality, or the reputation of the source.
-8. Explain every flag and every non-SUPPORTED classification briefly and concretely.
+7. overall_factual_support reflects only how well the article's factual claims are supported. It must not reflect political, ideological or religious neutrality, or the reputation of the source. In "rationale", say in one or two plain sentences why it is this high or low, naming what in the article does the supporting (documents, data, named sources, direct quotes) or what is lacking. A reader should be able to finish the sentence "This is well / poorly supported because...".
+8. Explain every classification and every flag briefly and concretely - including SUPPORTED claims: say what in the article supports them (for example "attributed to the court filing quoted in paragraph 3"), not just that they are supported.
 9. Never state or imply that external verification took place. Do not cite sources you have not been given.
 10. Write the summary and all explanations in the language of the article (see "language" in the input). Use neutral, non-sensational wording.
 11. The summary is a short conclusion for a reader in a hurry: 3 to 6 plain sentences, at most about 700 characters, no lists. First what the article supports well, then what it does not, then the one or two things most worth checking. Details belong in the claims and flags, not in the summary.

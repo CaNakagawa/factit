@@ -87,6 +87,18 @@ Provider connection:
 Provider requests are made only by the background worker; the settings
 page and content scripts never call providers directly.
 
+Cost estimation:
+
+- Settings has optional *price per 1M input / output tokens (USD)*.
+  Anthropic models are pre-filled from the list prices in
+  `providers/pricing.js`; other providers are typed in by the user.
+- Every reply (fresh or cached) carries `cost` computed from the
+  request's `usage` and the current prices; the panel shows it.
+- The background keeps running totals (`usage_totals` in
+  storage.local: requests, tokens, estimated cost) shown on the
+  settings page with a reset. Requests made without prices add tokens
+  but no cost.
+
 Fact It bar and analysis:
 
 1. Open an article. A thin dark bar appears at the top of the page:
@@ -106,7 +118,8 @@ Fact It bar and analysis:
 5. Errors show in the bar with **Retry**, or **Open settings** when the
    provider is not configured. ✕ hides the bar for this page load.
 6. After a result, click **Details** (or anywhere on the bar) to open
-   the panel. It opens compact: support and confidence, the notice
+   the panel. It opens compact: support with a one-line **rationale**
+   (why it is this well or poorly supported), confidence, the notice
    that no external sources were consulted, the **Conclusion**, a
    **Show highlights** button (green strengths: well-supported claims,
    no flags, no framing; red concerns: flags, disputed / misleading /
@@ -116,9 +129,10 @@ Fact It bar and analysis:
    evidence, attribution, opinion, assumption; right: what is missing
    and what the passage leads the reader to conclude; only claims with
    something to show, belief-based ones first), a
-   **Show detailed analysis** button, and one line of provenance
-   (model, provider, prompt version, time, truncation / dropped-item
-   notes). The button reveals claims (classification, allegation
+   **Show detailed analysis** button, token usage for the request
+   (`N in · N out tokens · ≈ $x` when prices are set in settings,
+   otherwise a hint), and one line of provenance (model, provider,
+   prompt version, time, truncation / dropped-item notes). The button reveals claims (classification, allegation
    marker, confidence, explanation), flags and framing, the latter in
    its own section with the note that it does not affect factual
    support. ✕ or Details closes the panel.

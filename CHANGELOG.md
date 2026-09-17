@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0 - 2026-09-18
+
+- Panel: one-line rationale under the factual support label ("well
+  supported because..."); per-claim explanations now also cover
+  supported claims (prompt 1.2.0, schema 1.2)
+- Panel: token usage per request and estimated cost when prices are
+  set; settings page gets price fields (pre-filled for Anthropic
+  models), running usage totals and a reset
+- Older cached results keep working (schema 1.0-1.2 accepted)
+
 ## 1.0.0 - 2026-09-18 - MVP
 
 First usable release. Chromium extension, Manifest V3, BYOK.

@@ -36,6 +36,18 @@
       <input id="model" name="model" spellcheck="false">
       <p class="hint" id="modelHint"></p>
 
+      <div class="prices">
+        <div>
+          <label for="inputPrice">Price per 1M input tokens (USD)</label>
+          <input id="inputPrice" name="inputPricePerM" inputmode="decimal" placeholder="e.g. 5">
+        </div>
+        <div>
+          <label for="outputPrice">Price per 1M output tokens (USD)</label>
+          <input id="outputPrice" name="outputPricePerM" inputmode="decimal" placeholder="e.g. 25">
+        </div>
+      </div>
+      <p class="hint" id="priceHint">Optional. Used only to estimate the cost of each analysis; leave empty to see token counts only.</p>
+
       <div class="actions">
         <button type="submit" id="save">Save</button>
         <button type="button" id="test">Test connection</button>
@@ -43,6 +55,12 @@
       </div>
       <p id="status" role="status" aria-live="polite"></p>
     </form>
+
+    <section>
+      <h2>Usage</h2>
+      <p id="usageTotals">-</p>
+      <button type="button" id="resetUsage" class="secondary">Reset counters</button>
+    </section>
 
     <section>
       <h2>Local analysis cache</h2>

@@ -71,6 +71,11 @@ tokens) and receives a JSON answer (typically 1-3k tokens). Nothing is
 sent on page load, on toolbar clicks, or when a cached result exists.
 Use a key with a spending limit.
 
+The details panel shows the token count of every request. Enter your
+provider's price per 1M input and output tokens in the settings
+(pre-filled for Anthropic models) and Fact It shows the estimated cost
+per analysis and a running total in the settings page.
+
 ## Reading the result
 
 - **Factual support** is about how well the article's factual claims

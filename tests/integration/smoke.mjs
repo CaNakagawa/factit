@@ -74,20 +74,24 @@ async function waitFor(fn, { tries = 50, interval = 200 } = {}) {
 async function clickShadowButton(page, text) {
   await page.send("DOM.enable");
   const tree = await page.send("DOM.getDocument", { depth: -1, pierce: true });
-  const find = (node) => {
-    if (node.nodeName === "BUTTON" && (node.children || []).some((c) => c.nodeValue === text)) return node;
-    for (const child of [...(node.children || []), ...(node.shadowRoots || [])]) { const h = find(child); if (h) return h; }
-    return null;
+  const matches = [];
+  const walk = (node) => {
+    if (node.nodeName === "BUTTON" && (node.children || []).some((c) => c.nodeValue === text)) matches.push(node);
+    for (const child of [...(node.children || []), ...(node.shadowRoots || [])]) walk(child);
   };
-  const button = find(tree.result.root);
-  if (!button) return false;
-  const box = await page.send("DOM.getBoxModel", { nodeId: button.nodeId });
-  const q = box.result.model.content;
-  const x = (q[0] + q[2]) / 2, y = (q[1] + q[5]) / 2;
-  for (const type of ["mousePressed", "mouseReleased"]) {
-    await page.send("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 });
+  walk(tree.result.root);
+  // First match that is actually rendered (hidden buttons have no box model).
+  for (const button of matches) {
+    const box = await page.send("DOM.getBoxModel", { nodeId: button.nodeId });
+    if (!box.result || !box.result.model) continue;
+    const q = box.result.model.content;
+    const x = (q[0] + q[2]) / 2, y = (q[1] + q[5]) / 2;
+    for (const type of ["mousePressed", "mouseReleased"]) {
+      await page.send("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 });
+    }
+    return true;
   }
-  return true;
+  return false;
 }
 
 async function shadowText(page, selectorClass) {
@@ -239,7 +243,7 @@ try {
   await sleep(500);
   const configured = await page.send("Runtime.evaluate", {
     expression: `(async () => {
-      await chrome.storage.local.set({ settings: { provider: "openai-compatible", apiKey: "sk-smoke-test-key-0000", model: "fake-model", baseUrl: "http://127.0.0.1:${WEB_PORT}/v1" } });
+      await chrome.storage.local.set({ settings: { provider: "openai-compatible", apiKey: "sk-smoke-test-key-0000", model: "fake-model", baseUrl: "http://127.0.0.1:${WEB_PORT}/v1", inputPricePerM: "2", outputPricePerM: "10" } });
       const reply = await chrome.runtime.sendMessage({ type: "FACTIT_TEST_PROVIDER" });
       await chrome.storage.local.remove("settings");
       return reply;
@@ -249,9 +253,9 @@ try {
   const reply = configured.result?.result?.value;
   const call = providerCalls[0];
   check(
-    Boolean(reply && reply.ok && reply.model === "fake-model" && reply.sample === "OK") &&
+    Boolean(reply && reply.ok && reply.model === "fake-model" && reply.sample === "OK" && reply.cost && Math.abs(reply.cost.usd - (5 * 2 + 1 * 10) / 1e6) < 1e-12) &&
       Boolean(call && call.headers.authorization === "Bearer sk-smoke-test-key-0000" && call.body.messages?.length === 2),
-    "background reached custom provider endpoint", JSON.stringify(reply),
+    "background reached custom provider endpoint (with cost estimate)", JSON.stringify(reply),
   );
   check(Boolean(call) && call.body.messages[0].role === "system" && call.body.messages[1].role === "user", "system and input sent as separate roles");
 
@@ -264,7 +268,7 @@ try {
 
   // 7b. Full round trip from the content script with the fake provider configured.
   await page.send("Runtime.evaluate", {
-    expression: `chrome.storage.local.set({ settings: { provider: "openai-compatible", apiKey: "sk-smoke-test-key-0000", model: "fake-model", baseUrl: "http://127.0.0.1:${WEB_PORT}/v1" } })`,
+    expression: `chrome.storage.local.set({ settings: { provider: "openai-compatible", apiKey: "sk-smoke-test-key-0000", model: "fake-model", baseUrl: "http://127.0.0.1:${WEB_PORT}/v1", inputPricePerM: "2", outputPricePerM: "10" } })`,
     awaitPromise: true,
   });
   await page.send("Page.navigate", { url: `http://127.0.0.1:${WEB_PORT}/` });
@@ -372,6 +376,8 @@ try {
     })()`,
     awaitPromise: true, returnByValue: true,
   });
+  const usageUi = await page.send("Runtime.evaluate", { expression: "document.getElementById('usageTotals').textContent", returnByValue: true });
+  check(/^3 requests since .*: 15 input \+ 3 output tokens, estimated \$0\.0001/.test(usageUi.result?.result?.value || ""), "settings page shows usage totals", usageUi.result?.result?.value);
   const cu = cacheUi.result?.result?.value || {};
   check(/^1 cached analysis\./.test(cu.before) && /^0 cached analyses\./.test(cu.after) && /Removed 1 cached analysis\./.test(cu.status),
     "settings page shows and clears the cache", JSON.stringify(cu));

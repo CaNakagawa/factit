@@ -105,6 +105,7 @@ export function validateAnalysis(raw) {
     overall_factual_support: clamp01(a && a.overall_factual_support),
     confidence: clamp01(a && a.confidence),
     verification_level: VERIFICATION_LEVEL, // never taken from the model
+    rationale: str(a && a.rationale, LIMITS.MAX_RATIONALE_CHARS), // schema 1.2; "" when absent
   };
   if (a && !Number.isFinite(Number(a.overall_factual_support))) errors.push("analysis.overall_factual_support is not a number");
   if (a && !Number.isFinite(Number(a.confidence))) errors.push("analysis.confidence is not a number");

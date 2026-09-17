@@ -16,7 +16,7 @@ function memoryArea() {
 
 test("sanitizeSettings drops unknown keys, trims, caps and defaults", () => {
   const out = sanitizeSettings({ provider: "evil", apiKey: "  k  ", model: "m".repeat(1000), baseUrl: 42, extra: true });
-  assert.deepEqual(Object.keys(out), ["provider", "apiKey", "model", "baseUrl"]);
+  assert.deepEqual(Object.keys(out), ["provider", "apiKey", "model", "baseUrl", "inputPricePerM", "outputPricePerM"]);
   assert.equal(out.provider, "openai");
   assert.equal(out.apiKey, "k");
   assert.equal(out.model.length, 512);
@@ -57,4 +57,13 @@ test("corrupt stored data is sanitized on read", async () => {
 
 test("throws without a storage area", () => {
   assert.throws(() => createSettingsStore(undefined), /No storage area/);
+});
+
+test("prices: numbers and comma decimals accepted, junk and negatives cleared", () => {
+  assert.equal(sanitizeSettings({ inputPricePerM: "5" }).inputPricePerM, "5");
+  assert.equal(sanitizeSettings({ inputPricePerM: "0,27" }).inputPricePerM, "0.27");
+  assert.equal(sanitizeSettings({ inputPricePerM: 2.5 }).inputPricePerM, "2.5");
+  assert.equal(sanitizeSettings({ inputPricePerM: "free" }).inputPricePerM, "");
+  assert.equal(sanitizeSettings({ outputPricePerM: "-1" }).outputPricePerM, "");
+  assert.equal(sanitizeSettings({ outputPricePerM: "" }).outputPricePerM, "");
 });

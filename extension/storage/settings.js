@@ -17,6 +17,9 @@ export const DEFAULT_SETTINGS = Object.freeze({
   apiKey: "",
   model: "",
   baseUrl: "",
+  // USD per 1M tokens, as entered; "" = unknown (tokens shown, no cost).
+  inputPricePerM: "",
+  outputPricePerM: "",
 });
 
 /**
@@ -27,11 +30,17 @@ export const DEFAULT_SETTINGS = Object.freeze({
 export function sanitizeSettings(input) {
   const src = input && typeof input === "object" ? input : {};
   const str = (v) => (typeof v === "string" ? v.trim().slice(0, MAX_FIELD_CHARS) : "");
+  const price = (v) => {
+    const n = typeof v === "number" ? v : Number(String(v ?? "").trim().replace(",", "."));
+    return String(v ?? "").trim() !== "" && Number.isFinite(n) && n >= 0 && n < 100000 ? String(n) : "";
+  };
   return {
     provider: PROVIDER_IDS.includes(src.provider) ? src.provider : DEFAULT_SETTINGS.provider,
     apiKey: str(src.apiKey),
     model: str(src.model),
     baseUrl: str(src.baseUrl),
+    inputPricePerM: price(src.inputPricePerM),
+    outputPricePerM: price(src.outputPricePerM),
   };
 }
 

@@ -134,7 +134,7 @@ test("valid output passes through with forced schema_version and verification_le
   const r = validateAnalysis(goodOutput());
   assert.equal(r.ok, true);
   assert.deepEqual(r.issues, []);
-  assert.equal(r.value.schema_version, "1.1");
+  assert.equal(r.value.schema_version, "1.2");
   assert.equal(r.value.analysis.verification_level, VERIFICATION_LEVEL);
   assert.equal(r.value.claims.length, 2);
   assert.deepEqual(Object.keys(r.value.claims[0]), ["text", "type", "classification", "confidence", "explanation", "basis", "missing_information", "implied"]);
@@ -152,7 +152,17 @@ test("the model cannot escalate the verification level or schema version", () =>
   }));
   assert.equal(r.ok, true);
   assert.equal(r.value.analysis.verification_level, "AI_PRELIMINARY");
-  assert.equal(r.value.schema_version, "1.1");
+  assert.equal(r.value.schema_version, "1.2");
+});
+
+test("schema 1.2: rationale is kept, capped, and empty when absent", () => {
+  const r = validateAnalysis(goodOutput({ analysis: { overall_factual_support: 0.7, confidence: 0.6, rationale: "Because the figures are attributed to the court filing. " + "x".repeat(1000) } }));
+  assert.equal(r.ok, true);
+  assert.match(r.value.analysis.rationale, /^Because the figures/);
+  assert.ok(r.value.analysis.rationale.length <= LIMITS.MAX_RATIONALE_CHARS + 1);
+  assert.equal(validateAnalysis(goodOutput()).value.analysis.rationale, "");
+  assert.match(SYSTEM_PROMPT, /"rationale"/);
+  assert.match(SYSTEM_PROMPT, /including SUPPORTED claims/);
 });
 
 test("schema 1.1: basis, missing_information and implied are validated and capped", () => {
@@ -253,7 +263,7 @@ test("analyzeArticle: happy path attaches meta and uses the analysis token budge
     provider: "fake",
     model: "fake-model",
     prompt_version: PROMPT_VERSION,
-    schema_version: "1.1",
+    schema_version: "1.2",
     analyzed_at: "2026-09-17T12:00:00.000Z",
     content_hash: "a".repeat(64),
     truncated_input: false,

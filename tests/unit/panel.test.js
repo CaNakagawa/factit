@@ -292,3 +292,26 @@ test("side by side: toggle next to highlights; two columns; old analyses offer R
   old.querySelector("button").click();
   assert.equal(reran, 1);
 });
+
+test("rationale sits under the support line; tokens and cost in the provenance block", () => {
+  const bar = createTopBar();
+  const panel = createPanel(bar.root);
+  panel.setResult(result({
+    analysis: { overall_factual_support: 0.72, confidence: 0.6, verification_level: "AI_PRELIMINARY", rationale: "Because the figures are attributed to the court filing and quoted directly." },
+    meta: { provider: "openai-compatible", model: "deepseek-chat", prompt_version: "1.2.0", analyzed_at: "2026-09-18T00:00:00.000Z", usage: { input_tokens: 2246, output_tokens: 2219 } },
+  }), { cost: { usd: 0.0234, input_usd: 0.0112, output_usd: 0.0122 } });
+  const p = bar.root.querySelector(".panel");
+  const rationale = p.querySelector(".rationale");
+  assert.match(rationale.textContent, /^Because the figures/);
+  assert.equal(rationale.previousElementSibling.querySelector("strong").textContent.startsWith("Factual support:"), true);
+  assert.match(p.querySelector(".usage").textContent, /2,246 in · 2,219 out tokens · ≈ \$0.023 \(\$0.011 in \+ \$0.012 out\)/);
+
+  // No prices configured: tokens only, with a hint.
+  panel.setResult(result({ meta: { usage: { input_tokens: 10, output_tokens: 5 } } }));
+  assert.match(bar.root.querySelector(".panel .usage").textContent, /10 in · 5 out tokens · set prices in Fact It settings/);
+
+  // No usage reported, no rationale.
+  panel.setResult(result({ meta: {} }));
+  assert.match(bar.root.querySelector(".panel .usage").textContent, /not reported/);
+  assert.equal(bar.root.querySelector(".panel .rationale"), null);
+});

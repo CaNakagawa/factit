@@ -68,7 +68,7 @@ test("schema 1.0 entries are still served, upgraded with default 1.1 fields", as
   area.data["analysis:" + hash(9)] = { result: result({ schema_version: "1.0" }), cached_at: "2026-01-01T00:00:00.000Z" };
   const hit = await cache.get(hash(9));
   assert.ok(hit);
-  assert.equal(hit.result.schema_version, "1.1");
+  assert.equal(hit.result.schema_version, "1.2");
   assert.equal(hit.result.claims[0].basis, "UNKNOWN");
 });
 

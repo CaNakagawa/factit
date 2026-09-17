@@ -39,6 +39,8 @@
     .panel .claim { margin: 4px 0 2px; color: #f5f7fa; }
     .panel .explanation { color: #cbd2d9; }
     .panel .lead { font-size: 14px; color: #f5f7fa; margin: 8px 0 4px; }
+    .panel .rationale { color: #e4e7eb; margin: 2px 0 8px; }
+    .panel .usage { color: #9aa5b1; font-size: 12px; }
     .panel .toggle {
       all: initial; display: block; box-sizing: border-box; width: 100%; cursor: pointer; text-align: center;
       margin: 14px 0 4px; padding: 8px 10px; border: 1px solid #7fb3c8; border-radius: 4px;
@@ -119,8 +121,9 @@
     const strong = el("strong", "", `Factual support: ${root.FactIt.supportLabel(support)} (${pct(support)})`);
     strong.style.color = color;
     line.append(meter, strong);
+    wrap.append(line);
+    if (result.analysis.rationale) wrap.append(el("p", "rationale", result.analysis.rationale));
     wrap.append(
-      line,
       el("p", "muted", `Model confidence: ${root.FactIt.confidenceLabel(Number(result.analysis.confidence) || 0)} (${pct(result.analysis.confidence)})`),
       el("p", "notice", "Preliminary AI analysis of how well the article supports its own claims. No external sources were consulted; this is not a verification of whether the claims are true."),
     );
@@ -173,7 +176,26 @@
     return wrap;
   }
 
-  function renderMetaCompact(meta, cached) {
+  function formatUsd(usd) {
+    if (!Number.isFinite(usd)) return "";
+    if (usd === 0) return "$0";
+    if (usd < 0.01) return `$${usd.toFixed(4)}`;
+    if (usd < 1) return `$${usd.toFixed(3)}`;
+    return `$${usd.toFixed(2)}`;
+  }
+
+  // "2,246 in · 2,219 out tokens · ≈ $0.023" or a hint to set prices.
+  function usageLine(meta, cost) {
+    const u = meta && meta.usage;
+    if (!u || !Number.isFinite(Number(u.input_tokens))) return "Token usage not reported by the provider.";
+    const n = (v) => Number(v || 0).toLocaleString();
+    let line = `${n(u.input_tokens)} in · ${n(u.output_tokens)} out tokens`;
+    if (cost && Number.isFinite(cost.usd)) line += ` · ≈ ${formatUsd(cost.usd)} (${formatUsd(cost.input_usd)} in + ${formatUsd(cost.output_usd)} out)`;
+    else line += " · set prices in Fact It settings to see the cost";
+    return line;
+  }
+
+  function renderMetaCompact(meta, cached, cost) {
     const when = meta.analyzed_at ? new Date(meta.analyzed_at).toLocaleString() : "unknown time";
     const parts = [
       "AI preliminary · not externally verified",
@@ -182,6 +204,7 @@
       cached ? `analyzed ${when} · shown from local cache` : when,
     ];
     const wrap = el("div", "compact");
+    wrap.append(el("div", "usage", usageLine(meta, cost)));
     wrap.append(el("div", "", parts.join(" · ")));
     if (meta.truncated_input) wrap.append(el("div", "", "Note: the article was cut for length; only the first part was analyzed."));
     if (Array.isArray(meta.validation_issues) && meta.validation_issues.length) {
@@ -394,7 +417,7 @@
     });
     setLabel();
 
-    frag.append(toggle, details, renderMetaCompact(result.meta || {}, options.cached));
+    frag.append(toggle, details, renderMetaCompact(result.meta || {}, options.cached, options.cost));
 
     if (options.onReanalyze) {
       const actions = el("div", "actions");
@@ -425,13 +448,14 @@
       element: panel,
       /**
        * @param {object} next validated AnalysisResult
-       * @param {{ cached?: boolean, onReanalyze?: Function }} [options]
+       * @param {{ cached?: boolean, cost?: object|null, onReanalyze?: Function }} [options]
        */
       setResult(next, options = {}) {
         result = next;
         host.dataset.factitDetails = "hidden";
         panel.replaceChildren(renderPanelContent(result, () => api.close(), {
           cached: Boolean(options.cached),
+          cost: options.cost || null,
           onReanalyze: options.onReanalyze,
           onToggleDetails: (open) => { host.dataset.factitDetails = open ? "shown" : "hidden"; },
         }));

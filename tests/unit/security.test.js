@@ -234,7 +234,7 @@ test("key leakage: analysis results and their meta never contain settings", asyn
 
 test("settings: unknown keys are dropped so nothing else rides along in storage", () => {
   const out = sanitizeSettings({ provider: "openai", apiKey: "k", model: "m", baseUrl: "", telemetry: true, __proto__: { evil: 1 }, toString: "x" });
-  assert.deepEqual(Object.keys(out), ["provider", "apiKey", "model", "baseUrl"]);
+  assert.deepEqual(Object.keys(out), ["provider", "apiKey", "model", "baseUrl", "inputPricePerM", "outputPricePerM"]);
 });
 
 // --------------------------------------------------------- oversized input
