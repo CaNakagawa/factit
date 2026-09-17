@@ -2,59 +2,60 @@
 
 ## CURRENT
 
-V0.1 - Chrome Extension Shell
+V0.2 - Article Extraction
 
 ## Objective
 
-Create the smallest valid Manifest V3 extension.
+Integrate reader-mode extraction so the extension can obtain the main
+article content locally, without sending raw page HTML anywhere.
 
 ## Tasks
 
-- [x] Create manifest.json
-- [x] Create service worker
-- [x] Create content script
-- [x] Create settings page
-- [x] Load extension manually in Chromium/Chrome
-      (loaded unpacked in Chromium on 2026-09-17; also covered by
-      `npm run test:smoke`)
-- [x] Verify service worker
-- [x] Verify content script
-- [x] Document development installation (docs/DEVELOPMENT.md)
+- [x] Evaluate and adopt Mozilla Readability (ADR-003)
+- [x] Vendor Readability into extension/vendor/ (`npm run vendor`)
+- [x] Implement content/extractor.js
+      (url, domain, title, author, publication date, language,
+      main text, article links, image metadata)
+- [x] Wire extraction into the content script
+      (runs on readerable pages; answers `FACTIT_EXTRACT`)
+- [x] Unit tests with jsdom fixtures (article + non-article)
+- [x] Browser smoke test covers extraction
+- [x] Document verification and vendoring (docs/DEVELOPMENT.md)
 
 ## Acceptance Criteria
 
-- [x] Chrome accepts the extension without errors.
-- [x] Content script executes on a normal webpage.
-- [x] Settings page opens.
-- [x] No unnecessary permissions are requested (`permissions: []`,
-      no `host_permissions`; content script limited to http/https).
+- [x] Extraction works on an article page without contacting an LLM.
+- [x] Output is plain text plus validated http(s) URLs; no raw HTML.
+- [x] Navigation, banners, recommendations and footer are excluded.
+- [x] Non-article pages yield "no article" rather than garbage.
+- [x] The page DOM is not modified.
+- [x] No new permissions.
 
 ## Status
 
-V0.1 complete on 2026-09-17.
+V0.2 complete on 2026-09-17.
 
 Notes:
 
-- `permissions` is empty. The only access granted is the content
-  script match on `http://*/*` and `https://*/*`, documented in
-  docs/DEVELOPMENT.md.
-- `tests/unit/manifest.test.js` guards the permission set and
-  referenced files. `tests/integration/smoke.mjs` loads the
-  extension in headless Chromium.
-- Branded Google Chrome 137+ ignores `--load-extension`; automated
-  browser checks use Chromium.
+- Output shape mirrors the ArticleDocument `document` fields but is
+  still raw: no whitespace/URL normalization, no length cap, no
+  `schema_version`, no content hash. Those belong to V0.3.
+- Extracted URLs keep their query strings; V0.3 URL normalization
+  should decide what to strip.
+- Links are capped at 50 and images at 20, taken only from inside the
+  extracted article.
 
 ## NEXT
 
-V0.2 - Article Extraction (see PLAN.md). Not started.
+V0.3 - Content Normalization (see PLAN.md). Not started.
 
 ## DO NOT IMPLEMENT YET
 
 - OpenAI
 - Anthropic
 - AI analysis
-- Readability
 - Fact It bar
+- Local cache
 - Evidence Engine
 - Community
 - Authentication

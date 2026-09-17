@@ -4,7 +4,8 @@
 //   1. Chrome accepts the manifest (the service worker target appears)
 //   2. the content script executes on a normal http page
 //   3. the content script can reach the service worker
-//   4. the settings page opens
+//   4. article extraction runs in the page (vendored Readability loads)
+//   5. the settings page opens
 //
 // Requires a Chromium binary that honours --load-extension. Branded Google
 // Chrome (137+) silently ignores that flag, so this defaults to `chromium`.
@@ -14,7 +15,7 @@
 
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -23,7 +24,7 @@ const BROWSER = process.env.FACTIT_BROWSER || "chromium";
 const CDP_PORT = 9333;
 const WEB_PORT = 8765;
 
-const PAGE_HTML = "<!DOCTYPE html><html><head><title>Fact It smoke page</title></head><body><p>A normal webpage.</p></body></html>";
+const PAGE_HTML = readFileSync(new URL("../fixtures/article.html", import.meta.url), "utf8");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const listTargets = async () => (await fetch(`http://127.0.0.1:${CDP_PORT}/json/list`)).json();
@@ -93,15 +94,23 @@ try {
   await page.send("Runtime.enable");
   await page.send("Page.enable");
   await page.send("Page.navigate", { url: `http://127.0.0.1:${WEB_PORT}/` });
+  // Objects logged by the content script arrive as previews; flatten them.
+  const argText = (a) => a.value ?? (a.preview
+    ? a.preview.properties.map((p) => `${p.name}=${p.value}`).join(",")
+    : a.description ?? "");
   const consoleText = () => page.events
     .filter((e) => e.method === "Runtime.consoleAPICalled")
-    .map((e) => e.params.args.map((a) => a.value ?? a.description ?? "").join(" "));
+    .map((e) => e.params.args.map(argText).join(" "));
   await waitFor(() => consoleText().some((l) => l.includes("service worker responded")), { tries: 25 });
   const logs = consoleText();
   check(logs.some((l) => l.includes("[Fact It] content script loaded")), "content script executed on http page");
   check(logs.some((l) => l.includes("[Fact It] service worker responded")), "content script reached service worker");
 
-  // 4. Settings page opens.
+  // 4. Extraction ran on the fixture article.
+  const extraction = logs.find((l) => l.startsWith("[Fact It] extraction:"));
+  check(Boolean(extraction) && extraction.includes("title=City council approves new transit plan"), "article extracted in page", extraction);
+
+  // 5. Settings page opens.
   await page.send("Page.navigate", { url: `chrome-extension://${extensionId}/options/options.html` });
   await sleep(500);
   const evaluated = await page.send("Runtime.evaluate", {

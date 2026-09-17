@@ -3,8 +3,15 @@
 ## Requirements
 
 - Chromium or Google Chrome (Manifest V3, Chrome 88+)
-- Node.js 20+ (tests only; the extension itself has no build step and
-  no dependencies)
+- Node.js 20+ (tests and vendoring only; the extension itself has no
+  build step)
+
+```bash
+npm install
+```
+
+installs dev-only dependencies: `@mozilla/readability` (source of the
+vendored extraction library) and `jsdom` (extraction tests).
 
 ## Load the extension (unpacked)
 
@@ -43,6 +50,23 @@ Content script:
 Content scripts do not run on `chrome://` pages, the Chrome Web Store,
 or `file://` URLs.
 
+Article extraction:
+
+1. Open a news article or blog post.
+2. The page console shows `[Fact It] extraction: {title, author,
+   published_at, language, content_chars, links, images}`.
+   Only this summary is logged, never the article text.
+3. On pages that do not look like an article (search results, home
+   pages, dashboards) it shows `no article detected`. That is a valid
+   result, not an error.
+
+To inspect a full extraction, open the service worker console and run:
+
+```js
+chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) =>
+  chrome.tabs.sendMessage(tab.id, { type: "FACTIT_EXTRACT" }, console.log));
+```
+
 Settings page:
 
 1. On `chrome://extensions`, open **Details** on the Fact It card.
@@ -68,11 +92,25 @@ Branded Google Chrome 137 and later ignores that flag, so the test
 defaults to the `chromium` binary. Point it elsewhere with
 `FACTIT_BROWSER=/path/to/chromium npm run test:smoke`.
 
+## Vendored code
+
+`extension/vendor/` holds a committed copy of Mozilla Readability
+(Apache-2.0). Content scripts cannot be ES modules and the project has
+no bundler, so the files are shipped as classic scripts. Never edit
+them by hand; bump the pinned version in `package.json` and run:
+
+```bash
+npm run vendor
+```
+
+`tests/unit/vendor.test.js` fails if the copies drift from
+`node_modules`.
+
 ## Permissions
 
 SECURITY.md requires a documented reason for every permission.
 
-Current state (V0.1):
+Current state (V0.2):
 
 | Manifest key         | Value                          | Reason |
 |----------------------|--------------------------------|--------|
@@ -90,8 +128,12 @@ extension/
   manifest.json
   background/service-worker.js   privileged context; future provider calls
   content/content-script.js      runs on pages; never receives API keys
+  content/extractor.js           Readability-based article extraction
+  vendor/                        committed copy of Mozilla Readability
   options/                       settings page (options_ui)
+scripts/vendor-readability.mjs   refreshes extension/vendor/
 tests/
-  unit/                          node:test, hermetic
+  unit/                          node:test + jsdom, hermetic
+  fixtures/                      HTML pages used by tests
   integration/smoke.mjs          headless Chromium smoke test
 ```
