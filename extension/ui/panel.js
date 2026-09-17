@@ -48,6 +48,22 @@
     .panel .details[hidden] { display: none; }
     .panel .compact { font-size: 12px; color: #9aa5b1; margin-top: 12px; }
     .panel .actions { display: flex; gap: 8px; margin-top: 10px; }
+    .panel .hl-toggle {
+      all: initial; cursor: pointer; font: 12px system-ui, sans-serif; color: #f5f7fa;
+      border: 1px solid #52606d; border-radius: 3px; padding: 4px 10px; margin: 6px 0 2px;
+    }
+    .panel .hl-toggle:hover { background: #3e4c59; }
+    .panel .hl-toggle .pos { color: #22c55e; font-weight: 700; }
+    .panel .hl-toggle .neg { color: #ef4444; font-weight: 700; }
+    .panel .highlights[hidden] { display: none; }
+    .panel .highlights h4 { font-size: 12px; margin: 10px 0 4px; }
+    .panel .highlights h4.pos { color: #22c55e; }
+    .panel .highlights h4.neg { color: #ef4444; }
+    .panel .highlights ul { margin: 0 0 4px; }
+    .panel .highlights li { padding: 3px 0 3px 10px; border-top: none; border-left: 3px solid #3e4c59; margin: 3px 0; }
+    .panel .highlights li.pos { border-left-color: #22c55e; }
+    .panel .highlights li.neg { border-left-color: #ef4444; }
+    .panel .highlights .neutral { color: #9aa5b1; font-size: 12px; margin-top: 6px; }
     .panel .secondary {
       all: initial; cursor: pointer; font: 12px system-ui, sans-serif; color: #cbd2d9;
       border: 1px solid #52606d; border-radius: 3px; padding: 4px 8px;
@@ -159,6 +175,79 @@
     return wrap;
   }
 
+  const POSITIVE_CLASSES = new Set(["SUPPORTED", "MOSTLY_SUPPORTED"]);
+  const NEGATIVE_CLASSES = new Set(["DISPUTED", "MISLEADING", "MOSTLY_FALSE", "FALSE", "INSUFFICIENT_EVIDENCE"]);
+  const MAX_HIGHLIGHT_ITEMS = 6;
+
+  /**
+   * Derive positive and negative aspects from the validated result. Pure
+   * data transformation, exported for tests.
+   */
+  function deriveHighlights(result) {
+    const claims = Array.isArray(result.claims) ? result.claims : [];
+    const flags = Array.isArray(result.flags) ? result.flags : [];
+    const framing = result.framing || {};
+    const positives = [];
+    const negatives = [];
+    let neutral = 0;
+
+    for (const c of claims) {
+      const label = `${humanize(c.classification)}: ${c.text}`;
+      if (POSITIVE_CLASSES.has(c.classification)) positives.push(label);
+      else if (NEGATIVE_CLASSES.has(c.classification)) negatives.push(label);
+      else neutral++;
+      if (c.type === "ALLEGATION" && !NEGATIVE_CLASSES.has(c.classification)) {
+        negatives.push(`Allegation, not established: ${c.text}`);
+      }
+    }
+    for (const f of flags) {
+      negatives.push(f.explanation ? `${humanize(f.type)}: ${f.explanation}` : humanize(f.type));
+    }
+    if (framing.detected) {
+      negatives.push(`Framing noted (${humanize(framing.type || "OTHER")}, ${framing.strength ? humanize(framing.strength).toLowerCase() : "unknown"} strength)${framing.explanation ? ": " + framing.explanation : ""}`);
+    } else if (claims.length) {
+      positives.push("No notable framing detected");
+    }
+    if (claims.length && flags.length === 0) positives.push("No flags raised");
+
+    return { positives, negatives, neutral };
+  }
+
+  function renderHighlights(result) {
+    const { positives, negatives, neutral } = deriveHighlights(result);
+    const wrap = el("div", "highlights");
+    wrap.hidden = true;
+
+    const list = (items, cls, title, empty) => {
+      wrap.append(el("h4", cls, `${title} (${items.length})`));
+      if (!items.length) {
+        wrap.append(el("p", "muted", empty));
+        return;
+      }
+      const ul = el("ul");
+      for (const text of items.slice(0, MAX_HIGHLIGHT_ITEMS)) ul.append(el("li", cls, text));
+      if (items.length > MAX_HIGHLIGHT_ITEMS) ul.append(el("li", "muted", `+${items.length - MAX_HIGHLIGHT_ITEMS} more in the detailed analysis`));
+      wrap.append(ul);
+    };
+    list(positives, "pos", "Strengths", "Nothing in the article stood out as well supported.");
+    list(negatives, "neg", "Concerns", "No concerns were raised.");
+    if (neutral) wrap.append(el("p", "neutral", `${neutral} claim${neutral === 1 ? "" : "s"} unverified or only partially supported: worth checking, neither a strength nor a concern.`));
+
+    const toggle = el("button", "hl-toggle");
+    const render = () => {
+      toggle.replaceChildren(
+        document.createTextNode(wrap.hidden ? "Show highlights · " : "Hide highlights · "),
+        el("span", "pos", `${positives.length} ✓`),
+        document.createTextNode(" "),
+        el("span", "neg", `${negatives.length} ✗`),
+      );
+      toggle.setAttribute("aria-expanded", String(!wrap.hidden));
+    };
+    toggle.addEventListener("click", () => { wrap.hidden = !wrap.hidden; render(); });
+    render();
+    return { toggle, wrap };
+  }
+
   /**
    * Build the panel contents for a validated AnalysisResult.
    * Exported for tests; createPanel uses it.
@@ -173,8 +262,11 @@
     head.append(el("h2", "", "Fact It · preliminary analysis"), close);
     frag.append(head, renderOverview(result));
 
-    // Conclusion first: this is what most readers want.
+    // Conclusion first: this is what most readers want, then the
+    // positive/negative highlights on demand.
     frag.append(section("Conclusion"), el("p", "lead", result.summary || "No summary provided."));
+    const highlights = renderHighlights(result);
+    frag.append(highlights.toggle, highlights.wrap);
 
     // Everything else is opt-in.
     const claims = Array.isArray(result.claims) ? result.claims : [];
@@ -270,5 +362,5 @@
     return api;
   }
 
-  root.FactIt = Object.assign(root.FactIt || {}, { createPanel, renderPanelContent, humanize });
+  root.FactIt = Object.assign(root.FactIt || {}, { createPanel, renderPanelContent, deriveHighlights, humanize });
 })(globalThis);

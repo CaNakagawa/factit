@@ -108,6 +108,10 @@ Fact It bar and analysis:
 6. After a result, click **Details** (or anywhere on the bar) to open
    the panel. It opens compact: support and confidence, the notice
    that no external sources were consulted, the **Conclusion**, a
+   **Show highlights** button (green strengths: well-supported claims,
+   no flags, no framing; red concerns: flags, disputed / misleading /
+   false / insufficient claims, allegations, detected framing - all
+   derived from the result, no extra tokens), a
    **Show detailed analysis** button, and one line of provenance
    (model, provider, prompt version, time, truncation / dropped-item
    notes). The button reveals claims (classification, allegation

@@ -11,7 +11,7 @@ globalThis.document = dom.window.document;
 globalThis.HTMLElement = dom.window.HTMLElement;
 loadClassicScript(new URL("../../extension/ui/top-bar.js", import.meta.url));
 loadClassicScript(new URL("../../extension/ui/panel.js", import.meta.url));
-const { createTopBar, createPanel, renderPanelContent, humanize } = globalThis.FactIt;
+const { createTopBar, createPanel, renderPanelContent, deriveHighlights, humanize } = globalThis.FactIt;
 
 function result(overrides = {}) {
   return {
@@ -188,4 +188,60 @@ test("cached results show the cache note and a Re-analyze action", () => {
   panel.setResult(result(), {});
   assert.equal([...bar.root.querySelectorAll(".panel button")].some((b) => /Re-analyze/.test(b.textContent)), false);
   assert.doesNotMatch(bar.root.querySelector(".panel .compact").textContent, /cache/);
+});
+
+test("highlights: positives and negatives are derived from classifications, flags and framing", () => {
+  const h = deriveHighlights(result({
+    claims: [
+      { text: "A", type: "FACTUAL", classification: "SUPPORTED" },
+      { text: "B", type: "FACTUAL", classification: "MOSTLY_SUPPORTED" },
+      { text: "C", type: "FACTUAL", classification: "UNVERIFIED" },
+      { text: "D", type: "FACTUAL", classification: "PARTIALLY_SUPPORTED" },
+      { text: "E", type: "FACTUAL", classification: "FALSE" },
+      { text: "F", type: "ALLEGATION", classification: "INSUFFICIENT_EVIDENCE" },
+      { text: "G", type: "ALLEGATION", classification: "UNVERIFIED" },
+    ],
+    flags: [{ type: "MISSING_CONTEXT", explanation: "ctx" }],
+    framing: { detected: true, type: "POLITICAL", strength: "HIGH", confidence: 0.8, explanation: "leans" },
+  }));
+  assert.deepEqual(h.positives, ["Supported: A", "Mostly supported: B"]);
+  assert.deepEqual(h.negatives, [
+    "False: E",
+    "Insufficient evidence: F",
+    "Allegation, not established: G",
+    "Missing context: ctx",
+    "Framing noted (Political, high strength): leans",
+  ]);
+  assert.equal(h.neutral, 3, "C, D and G are neutral");
+
+  const clean = deriveHighlights(result({ claims: [{ text: "A", classification: "SUPPORTED" }], flags: [], framing: { detected: false } }));
+  assert.deepEqual(clean.positives, ["Supported: A", "No notable framing detected", "No flags raised"]);
+  assert.deepEqual(clean.negatives, []);
+
+  const empty = deriveHighlights(result({ claims: [], flags: [], framing: { detected: false } }));
+  assert.deepEqual(empty, { positives: [], negatives: [], neutral: 0 });
+});
+
+test("highlights: button under the conclusion toggles the lists; text only", () => {
+  const bar = createTopBar();
+  const panel = createPanel(bar.root);
+  panel.setResult(result({ summary: "<b>sum</b>", claims: [{ text: "<img src=x onerror=alert(1)>", classification: "FALSE" }] }));
+  const p = bar.root.querySelector(".panel");
+  const toggle = p.querySelector(".hl-toggle");
+  const block = p.querySelector(".highlights");
+  assert.ok(toggle && block);
+  assert.equal(block.hidden, true);
+  assert.match(toggle.textContent, /Show highlights · 0 ✓ 4 ✗/);
+  // Sits right after the conclusion lead.
+  assert.equal(p.querySelector(".lead").nextElementSibling, toggle);
+
+  toggle.click();
+  assert.equal(block.hidden, false);
+  assert.match(toggle.textContent, /^Hide highlights/);
+  assert.match(block.textContent, /Concerns \(4\)/);
+  assert.match(block.textContent, /False: <img src=x onerror=alert\(1\)>/);
+  assert.equal(block.querySelectorAll("img, b").length, 0);
+  assert.equal(block.querySelectorAll("li.neg").length, 4);
+  toggle.click();
+  assert.equal(block.hidden, true);
 });
