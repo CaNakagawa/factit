@@ -179,7 +179,7 @@ npm run vendor
 
 SECURITY.md requires a documented reason for every permission.
 
-Current state (V0.8):
+Current state (V0.9):
 
 | Manifest key         | Value                          | Reason |
 |----------------------|--------------------------------|--------|
@@ -218,6 +218,7 @@ extension/
 scripts/vendor-readability.mjs   refreshes extension/vendor/
 tests/
   unit/                          node:test + jsdom, hermetic
+  unit/security.test.js          adversarial cases per SECURITY.md table
   fixtures/                      HTML pages used by tests
   integration/smoke.mjs          headless Chromium smoke test
 ```

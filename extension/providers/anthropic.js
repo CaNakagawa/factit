@@ -3,7 +3,7 @@
 // Messages API called directly from the extension (BYOK). The article goes
 // in the user turn; Fact It's instructions in the top-level `system` field.
 
-import { invalidResponse, requireApiKey } from "./common.js";
+import { invalidResponse, modelName, requireApiKey } from "./common.js";
 
 const ENDPOINT = "https://api.anthropic.com/v1/messages";
 const API_VERSION = "2023-06-01";
@@ -58,7 +58,7 @@ export const anthropicProvider = Object.freeze({
 
     return {
       text,
-      model: typeof json.model === "string" ? json.model : model,
+      model: modelName(json.model, model),
       provider: providerId,
       finish,
       usage,

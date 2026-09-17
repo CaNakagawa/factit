@@ -15,6 +15,9 @@ export const REQUEST_TIMEOUT_MS = 60_000;
 const RETRY_STATUSES = new Set([429, 500, 502, 503, 504, 529]);
 const RETRY_DELAY_MS = 1500;
 const RETRY_DELAY_MAX_MS = 5000;
+// A provider answer is a few KB of JSON; anything near this is hostile or broken.
+export const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+export const MAX_MODEL_NAME_CHARS = 100;
 const MAX_ERROR_MESSAGE_CHARS = 200;
 
 /** Error kinds the rest of the extension can act on. */
@@ -58,6 +61,10 @@ export async function send(fetchImpl, url, headers, body, providerId, apiKey, op
     headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    // Never follow a redirect: the credential must only reach the origin
+    // the user configured.
+    redirect: "error",
+    credentials: "omit",
   });
 
   let response;
@@ -77,7 +84,15 @@ export async function send(fetchImpl, url, headers, body, providerId, apiKey, op
     );
   }
 
-  const text = await response.text();
+  let text;
+  try {
+    text = await readBodyCapped(response, MAX_RESPONSE_BYTES);
+  } catch (error) {
+    throw new ProviderError(ERROR_KINDS.INVALID_RESPONSE, redact(error.message, apiKey), {
+      status: response.status,
+      provider: providerId,
+    });
+  }
   let json = null;
   try {
     json = JSON.parse(text);
@@ -103,6 +118,40 @@ export async function send(fetchImpl, url, headers, body, providerId, apiKey, op
     });
   }
   return json;
+}
+
+// Read the body as text, aborting once it exceeds the cap. Uses the
+// stream when available (browser fetch), otherwise falls back to text().
+export async function readBodyCapped(response, maxBytes) {
+  const declared = Number(response.headers && typeof response.headers.get === "function" ? response.headers.get("content-length") : NaN);
+  if (Number.isFinite(declared) && declared > maxBytes) throw new Error(`Provider response too large (${declared} bytes).`);
+
+  if (response.body && typeof response.body.getReader === "function") {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let received = 0;
+    let out = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > maxBytes) {
+        try { await reader.cancel(); } catch { /* ignore */ }
+        throw new Error(`Provider response too large (over ${maxBytes} bytes).`);
+      }
+      out += decoder.decode(value, { stream: true });
+    }
+    return out + decoder.decode();
+  }
+
+  const text = await response.text();
+  if (text.length > maxBytes) throw new Error(`Provider response too large (${text.length} chars).`);
+  return text;
+}
+
+/** Model names come from the provider response; bound them for display. */
+export function modelName(value, fallback) {
+  return typeof value === "string" && value.trim() !== "" ? value.trim().slice(0, MAX_MODEL_NAME_CHARS) : fallback;
 }
 
 export function statusToKind(status) {

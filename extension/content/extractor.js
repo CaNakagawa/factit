@@ -12,6 +12,19 @@
   const MAX_LINKS = 50;
   const MAX_IMAGES = 20;
   const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
+  // Cloning and parsing a huge DOM is the one thing a hostile page can make
+  // expensive. Real articles are a few thousand nodes.
+  const MAX_DOM_NODES = 60000;
+  // Widgets Readability tends to keep although they are not article prose:
+  // sidebars, media players, embedded frames, forms, teasers. Removed from
+  // the CLONE only; the page itself is never touched.
+  const NOISE_SELECTOR = [
+    "aside", "audio", "video", "iframe", "form", "nav", "footer",
+    "[role=\"complementary\"]", "[role=\"navigation\"]",
+    "[class*=\"related\" i]", "[class*=\"recommend\" i]", "[class*=\"player\" i]",
+    "[class*=\"newsletter\" i]", "[class*=\"teaser\" i]", "[class*=\"share\" i]",
+    "[class*=\"cookie\" i]", "[class*=\"paywall\" i]", "[class*=\"advert\" i]",
+  ].join(",");
 
   // Resolve href against base and keep only http(s) URLs. Returns null
   // for javascript:, data:, mailto:, malformed values, etc.
@@ -83,9 +96,14 @@
     const { Readability, isProbablyReaderable } = deps;
 
     if (!isProbablyReaderable(doc)) return null;
+    if (doc.getElementsByTagName("*").length > MAX_DOM_NODES) return null;
 
     // Readability mutates the DOM it is given.
     const clone = doc.cloneNode(true);
+    for (const node of clone.querySelectorAll(NOISE_SELECTOR)) {
+      // Keep <form>/<nav> etc. only if they would remove the whole body.
+      if (node !== clone.body && node !== clone.documentElement) node.remove();
+    }
     const article = new Readability(clone, {
       serializer: (element) => element,
     }).parse();
@@ -109,5 +127,5 @@
     };
   }
 
-  root.FactIt = Object.assign(root.FactIt || {}, { extractArticle });
+  root.FactIt = Object.assign(root.FactIt || {}, { extractArticle, MAX_DOM_NODES });
 })(globalThis);

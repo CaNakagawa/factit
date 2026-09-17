@@ -3,7 +3,7 @@
 // Chat Completions API. System instructions go in the `system` role and the
 // untrusted article in the `user` role, never concatenated.
 
-import { invalidResponse, requireApiKey } from "./common.js";
+import { invalidResponse, modelName, requireApiKey } from "./common.js";
 
 const ENDPOINT = "https://api.openai.com/v1/chat/completions";
 
@@ -56,7 +56,7 @@ export function parseChatCompletion(json, providerId, model) {
 
   return {
     text: content,
-    model: typeof json.model === "string" ? json.model : model,
+    model: modelName(json.model, model),
     provider: providerId,
     finish,
     usage,

@@ -76,6 +76,9 @@
     if (running) return { ok: true, state: "running" };
     const hadBar = Boolean(bar && bar.host.isConnected);
     const ui = ensureBar();
+    // Re-assert our bar on top: a page may have stacked its own elements
+    // over it. Moving the host to the end of <html> restores stacking order.
+    (document.documentElement || document.body).append(ui.host);
     if (lastResult) {
       if (hadBar) panel.toggle();
       return { ok: true, state: "result", panel: panel.isOpen() ? "open" : "closed" };
