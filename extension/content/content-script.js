@@ -1,13 +1,14 @@
-// Fact It - content script (V0.5).
+// Fact It - content script (V0.6).
 //
 // Runs in an isolated world on http/https pages. It must never receive
 // API keys. Loaded after vendor/Readability*.js, utils/hash.js,
 // content/extractor.js and content/normalize.js (see manifest.json),
 // which provide the globals used here.
 //
-// Extracts and normalizes the article locally. On FACTIT_RUN (toolbar
-// click) it sends the ArticleDocument to the background worker for
-// analysis and logs the validated AnalysisResult. No UI yet (V0.6).
+// Extracts and normalizes the article locally and shows the Fact It bar
+// on article pages. Analysis runs on demand (toolbar click or the bar's
+// Analyze button): the ArticleDocument goes to the background worker,
+// the validated AnalysisResult comes back and the bar renders it.
 
 (() => {
   const deps = { Readability, isProbablyReaderable };
@@ -40,27 +41,51 @@
     };
   }
 
-  // Extract, hand the document to the background for analysis, log the
-  // outcome. Returns the reply so callers can inspect it.
+  let bar = null;
+  let running = false;
+
+  function ensureBar() {
+    if (!bar || !bar.host.isConnected) {
+      bar = FactIt.createTopBar({
+        onAnalyze: () => runAnalysis(),
+        onOpenSettings: () => chrome.runtime.sendMessage({ type: "FACTIT_OPEN_SETTINGS" }),
+      });
+    }
+    return bar;
+  }
+
+  // Extract, hand the document to the background for analysis, render
+  // and log the outcome. Returns the reply so callers can inspect it.
   async function runAnalysis() {
-    const article = await buildArticleDocument();
-    if (!article) {
-      console.log("[Fact It] analysis skipped: no article detected");
-      return { ok: false, error: { kind: "no_article", message: "No article detected on this page." } };
+    if (running) return { ok: false, error: { kind: "busy", message: "Analysis already running." } };
+    running = true;
+    const ui = ensureBar();
+    try {
+      ui.setLoading();
+      const article = await buildArticleDocument();
+      if (!article) {
+        console.log("[Fact It] analysis skipped: no article detected");
+        ui.setNoArticle();
+        return { ok: false, error: { kind: "no_article", message: "No article detected on this page." } };
+      }
+      console.log("[Fact It] analysis requested:", summarize(article));
+      const reply = await chrome.runtime.sendMessage({ type: "FACTIT_ANALYZE", article });
+      if (reply && reply.ok) {
+        const r = reply.result;
+        console.log(
+          `[Fact It] analysis (${r.analysis.verification_level}) support=${r.analysis.overall_factual_support} confidence=${r.analysis.confidence} claims=${r.claims.length} flags=${r.flags.length} framing=${r.framing.detected ? r.framing.type + "/" + r.framing.strength : "none"} via ${r.meta.provider}/${r.meta.model}`,
+        );
+        console.log("[Fact It] analysis result:", r);
+        ui.setResult(r);
+      } else {
+        const err = (reply && reply.error) || { kind: "unknown", message: "No reply from background." };
+        console.warn(`[Fact It] analysis failed (${err.kind}): ${err.message}`, err.details || "");
+        ui.setError(err);
+      }
+      return reply;
+    } finally {
+      running = false;
     }
-    console.log("[Fact It] analysis requested:", summarize(article));
-    const reply = await chrome.runtime.sendMessage({ type: "FACTIT_ANALYZE", article });
-    if (reply && reply.ok) {
-      const r = reply.result;
-      console.log(
-        `[Fact It] analysis (${r.analysis.verification_level}) support=${r.analysis.overall_factual_support} confidence=${r.analysis.confidence} claims=${r.claims.length} flags=${r.flags.length} framing=${r.framing.detected ? r.framing.type + "/" + r.framing.strength : "none"} via ${r.meta.provider}/${r.meta.model}`,
-      );
-      console.log("[Fact It] analysis result:", r);
-    } else {
-      const err = (reply && reply.error) || { kind: "unknown", message: "No reply from background." };
-      console.warn(`[Fact It] analysis failed (${err.kind}): ${err.message}`, err.details || "");
-    }
-    return reply;
   }
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -79,7 +104,11 @@
   });
 
   console.log("[Fact It] content script loaded:", location.href);
-  buildArticleDocument().then((article) => console.log("[Fact It] article:", summarize(article)));
+  buildArticleDocument().then((article) => {
+    console.log("[Fact It] article:", summarize(article));
+    // Idle bar only where there is something to analyze (ADR-006).
+    if (article) ensureBar();
+  });
 
   chrome.runtime.sendMessage({ type: "FACTIT_PING" }, (response) => {
     if (chrome.runtime.lastError) {

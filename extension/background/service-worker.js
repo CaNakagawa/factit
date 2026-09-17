@@ -1,4 +1,4 @@
-// Fact It - background service worker (V0.5).
+// Fact It - background service worker (V0.6).
 //
 // Privileged extension context. Provider requests are made here so that
 // API keys never reach content scripts or the webpage. Orchestrates:
@@ -105,6 +105,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         .then(sendResponse)
         .catch((error) => sendResponse({ ok: false, error: errorDetail(error) }));
       return true; // async
+
+    case "FACTIT_OPEN_SETTINGS":
+      if (!isContentScript(sender)) return false;
+      chrome.runtime.openOptionsPage();
+      return false;
 
     default:
       return false;

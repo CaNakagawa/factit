@@ -87,20 +87,31 @@ Provider connection:
 Provider requests are made only by the background worker; the settings
 page and content scripts never call providers directly.
 
-Analysis:
+Fact It bar and analysis:
 
-1. With a provider configured, open an article and click the **Fact It**
-   toolbar button (pin it via the extensions menu if it is hidden).
-2. The page console shows `[Fact It] analysis requested: {...}`, then
-   one line with support, confidence, claim/flag counts, framing and
-   provider/model, then `[Fact It] analysis result:` with the full
-   AnalysisResult (docs/ANALYSIS_SCHEMA.md).
-3. Failures are logged as `[Fact It] analysis failed (<kind>): ...`,
-   where kind is a provider error (`auth`, `rate_limit`, ...) or an
-   analysis error (`invalid_output`, `truncated_output`, `refused`).
+1. Open an article. A thin dark bar appears at the top of the page:
+   `Fact It · Not analyzed · [Analyze] · AI preliminary`. It appears
+   only where an article was detected; nothing has been sent anywhere
+   yet.
+2. Click **Analyze** in the bar or the **Fact It** toolbar button (pin
+   it via the extensions menu if hidden). The bar shows a spinner, then
+   the result: a support meter, `Factual support: <label>`, confidence
+   and claim/flag counts, and the tag `AI preliminary · not externally
+   verified`. Labels are descriptive (Well / Partially / Weakly
+   supported, Insufficient support), never verdicts.
+3. The page console still logs `[Fact It] analysis result:` with the
+   full AnalysisResult (docs/ANALYSIS_SCHEMA.md).
+4. Errors show in the bar with **Retry**, or **Open settings** when the
+   provider is not configured. ✕ hides the bar for this page load.
 
 Analysis runs only when you click (ADR-006); nothing is sent to a
 provider on page load. Each click costs tokens on paid providers.
+
+The bar lives in a closed shadow root on `document.documentElement`
+(`#factit-bar-host`, `data-factit-state` = idle | loading | result |
+error | no-article). Page CSS cannot restyle it and page scripts cannot
+read it. All text is set via `textContent`; model output is never
+rendered as HTML.
 
 ## Tests
 
@@ -140,7 +151,7 @@ npm run vendor
 
 SECURITY.md requires a documented reason for every permission.
 
-Current state (V0.5):
+Current state (V0.6):
 
 | Manifest key         | Value                          | Reason |
 |----------------------|--------------------------------|--------|
@@ -166,6 +177,7 @@ extension/
   analysis/prompt.js             PROMPT_VERSION, buildPrompt(article)
   analysis/validator.js          parse + validate model output
   analysis/engine.js             analyzeArticle(article, provider)
+  ui/top-bar.js                  Fact It bar (closed shadow root)
   providers/provider.js          registry + createProvider (common interface)
   providers/common.js            ProviderError, redaction, HTTP round trip
   providers/openai.js            adapters (also anthropic.js,

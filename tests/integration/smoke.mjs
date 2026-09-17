@@ -12,6 +12,8 @@
 //   7. a full analysis round trip (content script -> background ->
 //      fake provider -> validated AnalysisResult) works, and extension
 //      pages cannot submit articles for analysis
+//   8. the Fact It bar is idle on load (no provider call), shows the
+//      result after the run, and is absent on non-article pages
 //
 // Requires a Chromium binary that honours --load-extension. Branded Google
 // Chrome (137+) silently ignores that flag, so this defaults to `chromium`.
@@ -100,7 +102,7 @@ const web = createServer((req, res) => {
     return;
   }
   res.setHeader("content-type", "text/html");
-  res.end(PAGE_HTML);
+  res.end(req.url === "/plain" ? "<!DOCTYPE html><html><head><title>Plain</title></head><body><a href='/'>home</a></body></html>" : PAGE_HTML);
 }).listen(WEB_PORT);
 
 const browser = spawn(BROWSER, [
@@ -225,6 +227,14 @@ try {
   });
   await page.send("Page.navigate", { url: `http://127.0.0.1:${WEB_PORT}/` });
   await sleep(800);
+  // 8a. Bar is idle and no provider call has happened just from loading the page.
+  const callsBefore = providerCalls.length;
+  const idleState = await page.send("Runtime.evaluate", {
+    expression: "document.getElementById('factit-bar-host')?.dataset.factitState",
+    returnByValue: true,
+  });
+  check(idleState.result?.result?.value === "idle", "bar idle on article load", idleState.result?.result?.value);
+
   // Drive it exactly like the toolbar click does: from the worker, to the tab.
   const worker = await connect((await listTargets()).find((t) => t.type === "service_worker" && t.url.endsWith("/background/service-worker.js")).webSocketDebuggerUrl);
   const analyzed = await worker.send("Runtime.evaluate", {
@@ -244,6 +254,25 @@ try {
   const analysisCall = providerCalls.find((c) => c.body.messages.some((m) => m.content.includes("Article to analyze")));
   check(Boolean(analysisCall) && analysisCall.body.messages[0].role === "system" && analysisCall.body.messages[1].content.includes("City council approves"),
     "article sent as data in the user turn, instructions in system");
+  check(providerCalls.length === callsBefore + 1, "exactly one provider call, caused by the run", `${providerCalls.length - callsBefore}`);
+
+  // 8b. Bar shows the result; page scripts cannot read inside it.
+  const barAfter = await page.send("Runtime.evaluate", {
+    expression: "(h => ({ state: h?.dataset.factitState, shadow: h?.shadowRoot === null }))(document.getElementById('factit-bar-host'))",
+    returnByValue: true,
+  });
+  check(barAfter.result?.result?.value?.state === "result" && barAfter.result?.result?.value?.shadow === true, "bar shows result in a closed shadow root", JSON.stringify(barAfter.result?.result?.value));
+  if (process.env.FACTIT_SHOT) {
+    const shot = await page.send("Page.captureScreenshot", { format: "png", clip: { x: 0, y: 0, width: 1000, height: 120, scale: 1 } });
+    (await import("node:fs")).writeFileSync(process.env.FACTIT_SHOT, Buffer.from(shot.result.data, "base64"));
+  }
+
+  // 8c. No bar on a page without an article.
+  await page.send("Page.navigate", { url: `http://127.0.0.1:${WEB_PORT}/plain` });
+  await sleep(800);
+  const plain = await page.send("Runtime.evaluate", { expression: "document.getElementById('factit-bar-host') === null", returnByValue: true });
+  check(plain.result?.result?.value === true, "no bar on non-article page");
+
   await page.send("Runtime.evaluate", { expression: "chrome.storage.local.remove('settings')", awaitPromise: true });
 
   const exceptions = page.events.filter((e) => e.method === "Runtime.exceptionThrown");
