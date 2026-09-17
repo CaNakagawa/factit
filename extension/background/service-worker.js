@@ -1,15 +1,27 @@
-// Fact It - background service worker (V0.4).
+// Fact It - background service worker (V0.5).
 //
 // Privileged extension context. Provider requests are made here so that
-// API keys never reach content scripts or the webpage.
+// API keys never reach content scripts or the webpage. Orchestrates:
+//
+//   toolbar click -> FACTIT_RUN -> content script extracts
+//     -> FACTIT_ANALYZE (article) -> provider -> validated result -> reply
 
 import { createSettingsStore } from "../storage/settings.js";
 import { createProvider, ProviderError } from "../providers/provider.js";
+import { analyzeArticle, AnalysisError, articleDocumentProblem } from "../analysis/engine.js";
 
 const settings = createSettingsStore();
 
 chrome.runtime.onInstalled.addListener((details) => {
   console.log(`[Fact It] service worker installed (${details.reason})`);
+});
+
+// Analysis is on demand: the user clicks the toolbar button (ADR-006).
+chrome.action.onClicked.addListener((tab) => {
+  if (!tab || !tab.id) return;
+  chrome.tabs.sendMessage(tab.id, { type: "FACTIT_RUN" }).catch(() => {
+    // No content script on this page (chrome://, store, file://, ...).
+  });
 });
 
 // True only for the extension's own pages (settings page). Content scripts
@@ -24,6 +36,24 @@ function isExtensionPage(sender) {
       sender.url.startsWith(extensionOrigin + "/") &&
       (sender.origin === undefined || sender.origin === extensionOrigin),
   );
+}
+
+// Content scripts run inside a tab on an http(s) page. Extension pages
+// also live in tabs, so the URL scheme is the discriminator.
+function isContentScript(sender) {
+  return Boolean(
+    sender &&
+      sender.id === chrome.runtime.id &&
+      sender.tab &&
+      sender.tab.id &&
+      typeof sender.url === "string" &&
+      /^https?:\/\//.test(sender.url),
+  );
+}
+
+function errorDetail(error) {
+  if (error instanceof ProviderError || error instanceof AnalysisError) return error.toJSON();
+  return { kind: "unknown", message: "Unexpected error." };
 }
 
 // Minimal round trip to confirm the configured provider works. Returns
@@ -45,6 +75,14 @@ async function testProvider() {
   };
 }
 
+async function analyze(article) {
+  const problem = articleDocumentProblem(article);
+  if (problem) throw new AnalysisError("invalid_output", `Invalid article document: ${problem}.`);
+  const provider = createProvider(await settings.get());
+  const result = await analyzeArticle(article, provider);
+  return { ok: true, result };
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!sender || sender.id !== chrome.runtime.id) return false;
   if (!message || typeof message.type !== "string") return false;
@@ -58,12 +96,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!isExtensionPage(sender)) return false;
       testProvider()
         .then(sendResponse)
-        .catch((error) => {
-          const detail = error instanceof ProviderError
-            ? error.toJSON()
-            : { kind: "unknown", message: "Unexpected error." };
-          sendResponse({ ok: false, error: detail });
-        });
+        .catch((error) => sendResponse({ ok: false, error: errorDetail(error) }));
+      return true; // async
+
+    case "FACTIT_ANALYZE":
+      if (!isContentScript(sender)) return false;
+      analyze(message.article)
+        .then(sendResponse)
+        .catch((error) => sendResponse({ ok: false, error: errorDetail(error) }));
       return true; // async
 
     default:

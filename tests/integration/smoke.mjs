@@ -9,6 +9,9 @@
 //   6. the background worker can reach an OpenAI-compatible endpoint
 //      configured through settings (fake local server), and a content
 //      script cannot trigger provider calls
+//   7. a full analysis round trip (content script -> background ->
+//      fake provider -> validated AnalysisResult) works, and extension
+//      pages cannot submit articles for analysis
 //
 // Requires a Chromium binary that honours --load-extension. Branded Google
 // Chrome (137+) silently ignores that flag, so this defaults to `chromium`.
@@ -66,6 +69,14 @@ const check = (ok, label, detail = "") => {
 };
 
 const profileDir = mkdtempSync(join(tmpdir(), "factit-smoke-"));
+const FAKE_ANALYSIS = {
+  analysis: { overall_factual_support: 0.6, confidence: 0.5, verification_level: "EVIDENCE_VERIFIED" },
+  claims: [{ text: "The city council voted 7-2 on Tuesday.", type: "FACTUAL", classification: "UNVERIFIED", confidence: 0.5, explanation: "No source in the article." }],
+  flags: [{ type: "EXTERNAL_VERIFICATION_REQUIRED", explanation: "Check the cost figure." }],
+  framing: { detected: false, type: null, strength: null, confidence: 0.2, explanation: "" },
+  summary: "Preliminary: two central claims, one attributed.",
+};
+
 // Serves the fixture article and a fake OpenAI-compatible endpoint.
 const providerCalls = [];
 const web = createServer((req, res) => {
@@ -73,11 +84,16 @@ const web = createServer((req, res) => {
     let body = "";
     req.on("data", (d) => (body += d));
     req.on("end", () => {
-      providerCalls.push({ headers: req.headers, body: JSON.parse(body) });
+      const parsed = JSON.parse(body);
+      providerCalls.push({ headers: req.headers, body: parsed });
+      // Analysis requests carry the article envelope; answer with a canned
+      // AnalysisResult (wrapped in a code fence to exercise tolerant parsing).
+      const isAnalysis = parsed.messages.some((m) => m.role === "user" && m.content.includes("Article to analyze"));
+      const content = isAnalysis ? "```json\n" + JSON.stringify(FAKE_ANALYSIS) + "\n```" : "OK";
       res.setHeader("content-type", "application/json");
       res.end(JSON.stringify({
         model: "fake-model",
-        choices: [{ message: { role: "assistant", content: "OK" }, finish_reason: "stop" }],
+        choices: [{ message: { role: "assistant", content }, finish_reason: "stop" }],
         usage: { prompt_tokens: 5, completion_tokens: 1 },
       }));
     });
@@ -194,6 +210,41 @@ try {
     "background reached custom provider endpoint", JSON.stringify(reply),
   );
   check(Boolean(call) && call.body.messages[0].role === "system" && call.body.messages[1].role === "user", "system and input sent as separate roles");
+
+  // 7a. Extension pages cannot submit articles for analysis.
+  const fromOptions = await page.send("Runtime.evaluate", {
+    expression: "chrome.runtime.sendMessage({ type: 'FACTIT_ANALYZE', article: {} }).then(r => r === undefined ? 'ignored' : 'ANSWERED').catch(() => 'ignored')",
+    awaitPromise: true, returnByValue: true,
+  });
+  check(fromOptions.result?.result?.value === "ignored", "extension page cannot submit analysis", fromOptions.result?.result?.value);
+
+  // 7b. Full round trip from the content script with the fake provider configured.
+  await page.send("Runtime.evaluate", {
+    expression: `chrome.storage.local.set({ settings: { provider: "openai-compatible", apiKey: "sk-smoke-test-key-0000", model: "fake-model", baseUrl: "http://127.0.0.1:${WEB_PORT}/v1" } })`,
+    awaitPromise: true,
+  });
+  await page.send("Page.navigate", { url: `http://127.0.0.1:${WEB_PORT}/` });
+  await sleep(800);
+  // Drive it exactly like the toolbar click does: from the worker, to the tab.
+  const worker = await connect((await listTargets()).find((t) => t.type === "service_worker" && t.url.endsWith("/background/service-worker.js")).webSocketDebuggerUrl);
+  const analyzed = await worker.send("Runtime.evaluate", {
+    expression: `chrome.tabs.query({ active: true }).then((tabs) => chrome.tabs.sendMessage(tabs[0].id, { type: "FACTIT_RUN" }))`,
+    awaitPromise: true, returnByValue: true,
+  });
+  worker.close();
+  const runReply = analyzed.result?.result?.value;
+  const r = runReply && runReply.result;
+  check(
+    Boolean(r) && r.schema_version === "1.0" && r.analysis.verification_level === "AI_PRELIMINARY" &&
+      r.claims.length === 1 && r.flags[0].type === "EXTERNAL_VERIFICATION_REQUIRED" && r.meta.model === "fake-model" &&
+      /^[0-9a-f]{64}$/.test(r.meta.content_hash) && r.meta.prompt_version === "1.0.0",
+    "analysis round trip via content script",
+    r ? `support=${r.analysis.overall_factual_support} level=${r.analysis.verification_level} claims=${r.claims.length}` : JSON.stringify(runReply) + (analyzed.result?.exceptionDetails ? " exception=" + analyzed.result.exceptionDetails.exception?.description : ""),
+  );
+  const analysisCall = providerCalls.find((c) => c.body.messages.some((m) => m.content.includes("Article to analyze")));
+  check(Boolean(analysisCall) && analysisCall.body.messages[0].role === "system" && analysisCall.body.messages[1].content.includes("City council approves"),
+    "article sent as data in the user turn, instructions in system");
+  await page.send("Runtime.evaluate", { expression: "chrome.storage.local.remove('settings')", awaitPromise: true });
 
   const exceptions = page.events.filter((e) => e.method === "Runtime.exceptionThrown");
   check(exceptions.length === 0, "no runtime exceptions", exceptions.map((e) => e.params.exceptionDetails.text).join("; "));

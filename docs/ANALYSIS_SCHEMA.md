@@ -2,21 +2,24 @@
 
 Schema Version: 1.0
 
-Conceptual result:
+Produced by `analyzeArticle` (extension/analysis/engine.js) from the
+model's JSON after validation (extension/analysis/validator.js).
+Enumerations live in extension/analysis/schema.js.
 
+```
 {
   "schema_version": "1.0",
-
   "analysis": {
     "overall_factual_support": 0.0,
     "confidence": 0.0,
     "verification_level": "AI_PRELIMINARY"
   },
-
-  "claims": [],
-
-  "flags": [],
-
+  "claims": [
+    { "text": "", "type": "FACTUAL", "classification": "UNVERIFIED", "confidence": 0.0, "explanation": "" }
+  ],
+  "flags": [
+    { "type": "MISSING_CONTEXT", "explanation": "" }
+  ],
   "framing": {
     "detected": false,
     "type": null,
@@ -24,13 +27,38 @@ Conceptual result:
     "confidence": 0.0,
     "explanation": ""
   },
-
-  "summary": ""
+  "summary": "",
+  "meta": {
+    "provider": "", "model": "", "prompt_version": "1.0.0", "schema_version": "1.0",
+    "analyzed_at": "<ISO 8601>", "content_hash": "<sha256>", "truncated_input": false,
+    "finish": "stop", "usage": { "input_tokens": 0, "output_tokens": 0 } | null,
+    "validation_issues": []
+  }
 }
+```
+
+## Trust boundary
+
+Everything except `meta` originates from the model and is UNTRUSTED
+until validated. The validator:
+
+- forces `schema_version` and `analysis.verification_level`; the model
+  cannot set them
+- clamps every number to [0, 1]
+- enforces every enumeration (case-insensitive match, otherwise the item
+  is dropped and noted in `meta.validation_issues`)
+- caps string lengths (claim text 300, explanations 600, summary 1200)
+- caps `claims` and `flags` at 20 each
+- drops unknown fields
+
+`meta` is added by the engine, never by the model.
+
+Strings are plain text. The UI must render them as text, never as HTML.
 
 ## Factual Support
 
-overall_factual_support represents factual support only.
+`overall_factual_support` represents factual support only: how well the
+article's factual claims are supported within the article.
 
 It must NOT include:
 
@@ -39,7 +67,19 @@ It must NOT include:
 - religious neutrality
 - community reputation
 
-## Claim Classifications
+## Verification level
+
+`AI_PRELIMINARY` is the only value the extension can produce. A future
+Evidence Engine would introduce a different value. The two must never
+be confused; the UI must always show the preliminary status.
+
+## Claims
+
+`type`: `FACTUAL` | `ALLEGATION` (an accusation against a person or
+organization). Opinions are not claims; an opinion presented as fact
+becomes an `OPINION_PRESENTED_AS_FACT` flag.
+
+`classification`:
 
 SUPPORTED
 MOSTLY_SUPPORTED
@@ -51,9 +91,10 @@ MOSTLY_FALSE
 FALSE
 INSUFFICIENT_EVIDENCE
 
-## Flags
+`UNVERIFIED` and `INSUFFICIENT_EVIDENCE` are normal outcomes, not
+failures.
 
-Possible values:
+## Flags
 
 MISSING_CONTEXT
 UNSUPPORTED_ACCUSATION
@@ -70,9 +111,10 @@ EXTERNAL_VERIFICATION_REQUIRED
 
 ## Framing
 
-Framing is independent from factuality.
+Framing is independent from factuality. When `detected` is false,
+`type` and `strength` are null.
 
-Potential types:
+Types:
 
 POLITICAL
 IDEOLOGICAL
@@ -82,7 +124,7 @@ ACTIVIST
 CULTURAL
 OTHER
 
-Possible strength:
+Strength:
 
 LOW
 MODERATE

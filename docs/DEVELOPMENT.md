@@ -87,6 +87,21 @@ Provider connection:
 Provider requests are made only by the background worker; the settings
 page and content scripts never call providers directly.
 
+Analysis:
+
+1. With a provider configured, open an article and click the **Fact It**
+   toolbar button (pin it via the extensions menu if it is hidden).
+2. The page console shows `[Fact It] analysis requested: {...}`, then
+   one line with support, confidence, claim/flag counts, framing and
+   provider/model, then `[Fact It] analysis result:` with the full
+   AnalysisResult (docs/ANALYSIS_SCHEMA.md).
+3. Failures are logged as `[Fact It] analysis failed (<kind>): ...`,
+   where kind is a provider error (`auth`, `rate_limit`, ...) or an
+   analysis error (`invalid_output`, `truncated_output`, `refused`).
+
+Analysis runs only when you click (ADR-006); nothing is sent to a
+provider on page load. Each click costs tokens on paid providers.
+
 ## Tests
 
 Unit tests (no browser required):
@@ -125,11 +140,12 @@ npm run vendor
 
 SECURITY.md requires a documented reason for every permission.
 
-Current state (V0.4):
+Current state (V0.5):
 
 | Manifest key         | Value                          | Reason |
 |----------------------|--------------------------------|--------|
 | `permissions`        | `["storage"]`                  | `chrome.storage.local` holds the provider settings and API key (V0.4). Not encrypted; stated on the settings page. |
+| `action`             | toolbar button                 | Not a permission. Triggers on-demand analysis; `chrome.action.onClicked` provides the tab id without the `tabs` permission. |
 | `host_permissions`   | not declared                   | Provider requests from the background worker work without it: Chrome grants host access for the content-script match patterns below, which already cover every http/https origin. Verified in `tests/integration/smoke.mjs` against a non-CORS local server. |
 | `content_scripts[].matches` | `http://*/*`, `https://*/*` | Fact It analyses ordinary web pages, so the content script must be able to run on any http/https page. `<all_urls>` is deliberately not used; it would also cover `file://` and other schemes. Chrome shows this as "Read and change all your data on all websites" at install time. |
 
@@ -146,6 +162,10 @@ extension/
   content/extractor.js           Readability-based article extraction
   content/normalize.js           extraction -> ArticleDocument (+ hash)
   utils/hash.js                  SHA-256 via WebCrypto
+  analysis/schema.js             AnalysisResult enums, limits, output shape
+  analysis/prompt.js             PROMPT_VERSION, buildPrompt(article)
+  analysis/validator.js          parse + validate model output
+  analysis/engine.js             analyzeArticle(article, provider)
   providers/provider.js          registry + createProvider (common interface)
   providers/common.js            ProviderError, redaction, HTTP round trip
   providers/openai.js            adapters (also anthropic.js,

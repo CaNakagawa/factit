@@ -159,3 +159,39 @@ messages.
 - Encrypting with a user passphrase: adds a prompt on every analysis;
   can be revisited if users ask for it.
 
+---
+
+## ADR-006 - Analysis runs on demand, not on page load
+
+### Context
+
+With extraction, normalization and providers in place, something has to
+trigger sending an article to the model. Running automatically on every
+readerable page would send content to a third party and spend the
+user's API budget without an explicit request, on pages the user may
+only skim.
+
+### Decision
+
+Analysis starts only when the user clicks the Fact It toolbar button
+(`action`). The background worker asks the content script for the
+ArticleDocument, runs the analysis and returns the result. Nothing is
+sent to a provider on page load.
+
+### Consequences
+
+- PRIVACY.md's "users should always know which provider receives their
+  content" holds by construction: content leaves the browser only on a
+  deliberate click.
+- The Fact It bar (V0.6) must have an idle state ("not analyzed yet")
+  in addition to result states.
+- An opt-in "analyze automatically" setting can be added later without
+  changing the pipeline; the local cache (V0.8) would make it cheap for
+  revisited pages.
+
+### Alternatives
+
+- Automatic on load: rejected for cost and privacy.
+- Trigger from the settings page: awkward; the settings tab steals focus
+  from the article.
+

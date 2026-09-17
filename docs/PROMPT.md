@@ -2,9 +2,8 @@
 
 Prompt versioning is mandatory.
 
-Initial version:
-
-1.0.0
+Current version: 1.0.0 (`PROMPT_VERSION` in extension/analysis/prompt.js).
+Bump it on any wording change; cached results are keyed on it.
 
 ## Input Separation
 
@@ -17,6 +16,14 @@ from:
 UNTRUSTED ARTICLE CONTENT
 
 Article content must never modify system instructions.
+
+Implementation: `buildPrompt(articleDocument)` returns `{ system, input }`.
+`system` is the fixed instruction text. `input` is the article and its
+metadata serialized as one JSON object. JSON string escaping means
+article text can never terminate the block or add structure of its own,
+and the system prompt states that everything inside it is data,
+including text that looks like instructions. Provider adapters send the
+two in separate fields/roles (ADR-004).
 
 ## AI Responsibilities
 
@@ -50,6 +57,9 @@ Never force certainty.
 During MVP:
 
 AI_PRELIMINARY
+
+The model is never asked for the verification level; the validator sets
+it. Model output claiming any other level is overwritten.
 
 Future Evidence Engine results may introduce another verification
 level.

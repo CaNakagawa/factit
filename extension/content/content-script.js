@@ -1,12 +1,13 @@
-// Fact It - content script (V0.3).
+// Fact It - content script (V0.5).
 //
 // Runs in an isolated world on http/https pages. It must never receive
 // API keys. Loaded after vendor/Readability*.js, utils/hash.js,
 // content/extractor.js and content/normalize.js (see manifest.json),
 // which provide the globals used here.
 //
-// V0.3: extracts the main article locally and normalizes it into an
-// ArticleDocument. Nothing leaves the page yet.
+// Extracts and normalizes the article locally. On FACTIT_RUN (toolbar
+// click) it sends the ArticleDocument to the background worker for
+// analysis and logs the validated AnalysisResult. No UI yet (V0.6).
 
 (() => {
   const deps = { Readability, isProbablyReaderable };
@@ -39,12 +40,40 @@
     };
   }
 
-  // On-demand extraction for the extension's own privileged context.
+  // Extract, hand the document to the background for analysis, log the
+  // outcome. Returns the reply so callers can inspect it.
+  async function runAnalysis() {
+    const article = await buildArticleDocument();
+    if (!article) {
+      console.log("[Fact It] analysis skipped: no article detected");
+      return { ok: false, error: { kind: "no_article", message: "No article detected on this page." } };
+    }
+    console.log("[Fact It] analysis requested:", summarize(article));
+    const reply = await chrome.runtime.sendMessage({ type: "FACTIT_ANALYZE", article });
+    if (reply && reply.ok) {
+      const r = reply.result;
+      console.log(
+        `[Fact It] analysis (${r.analysis.verification_level}) support=${r.analysis.overall_factual_support} confidence=${r.analysis.confidence} claims=${r.claims.length} flags=${r.flags.length} framing=${r.framing.detected ? r.framing.type + "/" + r.framing.strength : "none"} via ${r.meta.provider}/${r.meta.model}`,
+      );
+      console.log("[Fact It] analysis result:", r);
+    } else {
+      const err = (reply && reply.error) || { kind: "unknown", message: "No reply from background." };
+      console.warn(`[Fact It] analysis failed (${err.kind}): ${err.message}`, err.details || "");
+    }
+    return reply;
+  }
+
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!sender || sender.id !== chrome.runtime.id) return false;
-    if (message && message.type === "FACTIT_EXTRACT") {
+    if (!message || typeof message.type !== "string") return false;
+
+    if (message.type === "FACTIT_EXTRACT") {
       buildArticleDocument().then((article) => sendResponse({ type: "FACTIT_ARTICLE", article }));
       return true; // async response
+    }
+    if (message.type === "FACTIT_RUN") {
+      runAnalysis().then(sendResponse);
+      return true;
     }
     return false;
   });
