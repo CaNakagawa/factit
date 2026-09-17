@@ -36,6 +36,8 @@ test("every file referenced by the manifest exists", () => {
     manifest.background.service_worker,
     manifest.options_ui.page,
     ...manifest.content_scripts.flatMap((cs) => [...(cs.js ?? []), ...(cs.css ?? [])]),
+    ...Object.values(manifest.icons ?? {}),
+    ...Object.values(manifest.action?.default_icon ?? {}),
   ];
   for (const file of referenced) {
     assert.ok(existsSync(join(EXTENSION_DIR, file)), `missing ${file}`);
@@ -46,4 +48,12 @@ test("settings page does not use inline scripts", () => {
   const html = readFileSync(join(EXTENSION_DIR, manifest.options_ui.page), "utf8");
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/i);
   assert.doesNotMatch(html, /\son\w+\s*=/i);
+});
+
+test("release metadata: icons at every size, store-length description, versions in sync", () => {
+  assert.deepEqual(Object.keys(manifest.icons), ["16", "32", "48", "128"]);
+  assert.ok(manifest.description.length <= 132, "Chrome Web Store caps the description at 132 characters");
+  assert.equal(typeof manifest.action.default_title, "string");
+  const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
+  assert.equal(pkg.version, manifest.version);
 });

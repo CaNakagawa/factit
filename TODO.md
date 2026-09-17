@@ -2,69 +2,53 @@
 
 ## CURRENT
 
-V0.9 - Security Hardening
+V1.0 - MVP release
 
 ## Objective
 
-Adversarial pass over the PLAN.md list; fix what breaks; document the
-threat model and its test coverage.
+Release the first usable Fact It extension.
 
 ## Tasks
 
-- [x] Transport: `redirect: "error"`, `credentials: "omit"`, response
-      body capped at 2 MB (streamed), model name capped
-- [x] Prompt envelope: every field coerced and bounded in buildPrompt
-      (message-boundary defence)
-- [x] Extraction: DOM node cap; noise widgets (aside, players, iframes,
-      forms, related/teaser/newsletter/share/cookie/paywall/advert)
-      removed from the clone - also fixes the heise.de noise follow-up
-- [x] In-page UI: spoofed host replaced; bar re-asserted on toolbar
-      click; limitation documented
-- [x] tests/unit/security.test.js: 17 adversarial cases (webpage,
-      injection, model output, transport, custom endpoint, key
-      leakage incl. prefix-less keys, oversized input, XSS)
-- [x] SECURITY.md: trust boundaries, PLAN.md item -> defence -> tests
-      table, known limitations
+- [x] Icons 16/32/48/128 (`npm run icons`, committed PNGs)
+- [x] Manifest: version 1.0.0, icons, action icon, store-length
+      description, minimum_chrome_version 116
+- [x] `npm run package` -> dist/factit-1.0.0.zip (runs unit tests
+      first; refuses version mismatch)
+- [x] README rewritten for end users (install, providers, costs,
+      reading the result, privacy, development)
+- [x] LICENSE (MIT), CHANGELOG.md, docs/RELEASE.md checklist
+- [x] Manifest test: icons exist, description <= 132 chars, versions
+      in sync
 
-## Acceptance Criteria (PLAN.md V0.9 list)
+## Acceptance Criteria
 
-- [x] prompt injection
-- [x] XSS
-- [x] malformed LLM output
-- [x] malicious webpage content
-- [x] invalid providers
-- [x] custom endpoint abuse
-- [x] API key leakage
-- [x] extraction failures
-- [x] oversized articles
-- [x] permission requirements
+- [x] A user can install the zip, configure a provider, analyze an
+      article and read the result without reading the source.
+- [x] Explicitly excluded from V1: Community, Evidence Engine, user
+      accounts, reputation, Trust & Abuse backend, any Fact It
+      backend.
 
 ## Status
 
-V0.9 complete on 2026-09-17. 109 unit tests, 23 smoke checks.
+V1.0.0 packaged on 2026-09-18. 116 unit tests, 23 smoke checks.
 
-Notes:
+Remaining manual step (docs/RELEASE.md step 6/8): a final pass in a
+real browser with a real key on the packaged zip, then tag v1.0.0.
 
-- The noise selector is class-substring based ("related", "player",
-  ...); it can occasionally drop legitimate content on unusual sites.
-  It only affects the clone handed to Readability.
-- No change to permissions.
+## After V1.0
 
-## Post-V0.9 features (user requests)
+Not scheduled. Candidates, in no order:
 
-- Highlights button under the conclusion: strengths (green) vs
-  concerns (red), derived from the result.
-- Side-by-side view: schema 1.1 / prompt 1.1.0 add per-claim
-  `basis`, `missing_information`, `implied`; the panel shows "the
-  article says" vs "what is missing / what it implies", belief-based
-  claims first. Schema 1.0 cache entries are upgraded on read and the
-  view offers Re-analyze.
+- UI language following the browser locale (strings are English)
+- Optional "analyze automatically" setting, safe now that the cache
+  exists
+- Anthropic / OpenAI structured-output modes for fewer invalid_output
+  cases on weaker models
+- Retry-with-repair when the model returns near-valid JSON
+- Phase 2: Evidence Engine (PLAN.md V2)
 
-## NEXT
-
-V1.0 - MVP release (see PLAN.md). Not started.
-
-## DO NOT IMPLEMENT YET
+## DO NOT IMPLEMENT (V1 scope)
 
 - Evidence Engine
 - Community
