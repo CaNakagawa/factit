@@ -10,7 +10,7 @@ const EXTENSION_DIR = new URL("../../extension/", import.meta.url).pathname;
 const manifest = JSON.parse(readFileSync(join(EXTENSION_DIR, "manifest.json"), "utf8"));
 
 // Any addition here must be justified in docs/DEVELOPMENT.md (see SECURITY.md).
-const ALLOWED_PERMISSIONS = [];
+const ALLOWED_PERMISSIONS = ["storage"]; // provider settings + API key (V0.4)
 
 test("manifest is Manifest V3 with required fields", () => {
   assert.equal(manifest.manifest_version, 3);

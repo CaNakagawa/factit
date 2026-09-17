@@ -11,15 +11,51 @@
     <h1>Fact It</h1>
     <p class="tagline">Know what you're reading.</p>
 
-    <section>
-      <h2>Settings</h2>
+    <form id="settings" autocomplete="off">
+      <h2>AI provider</h2>
       <p>
-        Fact It is in early development. Provider configuration
-        (bring your own API key) will appear here in a later milestone.
+        Fact It sends the extracted article text directly from your browser to
+        the provider you choose, using your own API key (bring your own key).
+        Fact It operates no servers and never sees your key or your articles.
       </p>
-      <p class="meta">Version <span id="version">-</span></p>
+
+      <label for="provider">Provider</label>
+      <select id="provider" name="provider"></select>
+
+      <div id="baseUrlField" hidden>
+        <label for="baseUrl">Base URL</label>
+        <input id="baseUrl" name="baseUrl" type="url" placeholder="http://localhost:11434/v1" spellcheck="false">
+        <p class="hint">Chat Completions endpoint root. Plain http is only allowed for localhost.</p>
+      </div>
+
+      <label for="apiKey">API key</label>
+      <input id="apiKey" name="apiKey" type="password" spellcheck="false">
+      <p class="hint" id="apiKeyHint"></p>
+
+      <label for="model">Model</label>
+      <input id="model" name="model" spellcheck="false">
+      <p class="hint" id="modelHint"></p>
+
+      <div class="actions">
+        <button type="submit" id="save">Save</button>
+        <button type="button" id="test">Test connection</button>
+        <button type="button" id="removeKey" class="secondary">Remove key</button>
+      </div>
+      <p id="status" role="status" aria-live="polite"></p>
+    </form>
+
+    <section class="notice">
+      <h2>About your API key</h2>
+      <p>
+        The key is stored in this browser profile's extension storage. That
+        storage is not encrypted: anyone who can read your browser profile
+        can read the key. Use a key with a spending limit and revoke it if
+        you stop using Fact It.
+      </p>
     </section>
+
+    <p class="meta">Version <span id="version">-</span></p>
   </main>
-  <script src="options.js"></script>
+  <script type="module" src="options.js"></script>
 </body>
 </html>

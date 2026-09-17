@@ -73,6 +73,20 @@ Settings page:
 1. On `chrome://extensions`, open **Details** on the Fact It card.
 2. Click **Extension options**. The settings page opens in a new tab.
 
+Provider connection:
+
+1. On the settings page choose a provider, paste an API key (or, for an
+   OpenAI-compatible server, enter its base URL and model) and click
+   **Test connection**. The settings are saved first, then the
+   background worker sends a tiny request and reports the model that
+   answered, or an error kind (`config`, `auth`, `network`,
+   `rate_limit`, ...) with the provider's message.
+2. The key is never displayed again after saving. **Remove key** clears
+   it.
+
+Provider requests are made only by the background worker; the settings
+page and content scripts never call providers directly.
+
 ## Tests
 
 Unit tests (no browser required):
@@ -111,12 +125,12 @@ npm run vendor
 
 SECURITY.md requires a documented reason for every permission.
 
-Current state (V0.3):
+Current state (V0.4):
 
 | Manifest key         | Value                          | Reason |
 |----------------------|--------------------------------|--------|
-| `permissions`        | `[]`                           | Nothing is needed yet. |
-| `host_permissions`   | not declared                   | No cross-origin requests yet. |
+| `permissions`        | `["storage"]`                  | `chrome.storage.local` holds the provider settings and API key (V0.4). Not encrypted; stated on the settings page. |
+| `host_permissions`   | not declared                   | Provider requests from the background worker work without it: Chrome grants host access for the content-script match patterns below, which already cover every http/https origin. Verified in `tests/integration/smoke.mjs` against a non-CORS local server. |
 | `content_scripts[].matches` | `http://*/*`, `https://*/*` | Fact It analyses ordinary web pages, so the content script must be able to run on any http/https page. `<all_urls>` is deliberately not used; it would also cover `file://` and other schemes. Chrome shows this as "Read and change all your data on all websites" at install time. |
 
 Any addition must be justified here and reflected in
@@ -132,8 +146,13 @@ extension/
   content/extractor.js           Readability-based article extraction
   content/normalize.js           extraction -> ArticleDocument (+ hash)
   utils/hash.js                  SHA-256 via WebCrypto
+  providers/provider.js          registry + createProvider (common interface)
+  providers/common.js            ProviderError, redaction, HTTP round trip
+  providers/openai.js            adapters (also anthropic.js,
+                                 openai-compatible.js)
+  storage/settings.js            provider settings + key (storage.local)
   vendor/                        committed copy of Mozilla Readability
-  options/                       settings page (options_ui)
+  options/                       settings page (options_ui, ES module)
 scripts/vendor-readability.mjs   refreshes extension/vendor/
 tests/
   unit/                          node:test + jsdom, hermetic

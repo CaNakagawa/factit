@@ -6,6 +6,9 @@
 //   3. the content script can reach the service worker
 //   4. article extraction + normalization runs in the page
 //   5. the settings page opens
+//   6. the background worker can reach an OpenAI-compatible endpoint
+//      configured through settings (fake local server), and a content
+//      script cannot trigger provider calls
 //
 // Requires a Chromium binary that honours --load-extension. Branded Google
 // Chrome (137+) silently ignores that flag, so this defaults to `chromium`.
@@ -63,7 +66,26 @@ const check = (ok, label, detail = "") => {
 };
 
 const profileDir = mkdtempSync(join(tmpdir(), "factit-smoke-"));
-const web = createServer((_, res) => { res.setHeader("content-type", "text/html"); res.end(PAGE_HTML); }).listen(WEB_PORT);
+// Serves the fixture article and a fake OpenAI-compatible endpoint.
+const providerCalls = [];
+const web = createServer((req, res) => {
+  if (req.method === "POST" && req.url === "/v1/chat/completions") {
+    let body = "";
+    req.on("data", (d) => (body += d));
+    req.on("end", () => {
+      providerCalls.push({ headers: req.headers, body: JSON.parse(body) });
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({
+        model: "fake-model",
+        choices: [{ message: { role: "assistant", content: "OK" }, finish_reason: "stop" }],
+        usage: { prompt_tokens: 5, completion_tokens: 1 },
+      }));
+    });
+    return;
+  }
+  res.setHeader("content-type", "text/html");
+  res.end(PAGE_HTML);
+}).listen(WEB_PORT);
 
 const browser = spawn(BROWSER, [
   "--headless=new",
@@ -138,6 +160,40 @@ try {
   });
   const value = evaluated.result?.result?.value ?? "";
   check(value.includes("Fact It") && /version=\d/.test(value), "settings page opens", value);
+
+  // 6a. A content script must not be able to trigger provider calls.
+  await page.send("Page.navigate", { url: `http://127.0.0.1:${WEB_PORT}/` });
+  await sleep(800);
+  const isolated2 = page.events.filter((e) =>
+    e.method === "Runtime.executionContextCreated" && e.params.context.auxData?.type === "isolated" &&
+    e.params.context.origin.startsWith(`chrome-extension://${extensionId}`)).pop();
+  const fromContent = await page.send("Runtime.evaluate", {
+    contextId: isolated2.params.context.id,
+    expression: "chrome.runtime.sendMessage({ type: 'FACTIT_TEST_PROVIDER' }).then(r => r === undefined ? 'ignored' : 'ANSWERED').catch(e => 'ignored')",
+    awaitPromise: true, returnByValue: true,
+  });
+  check(fromContent.result?.result?.value === "ignored", "content script cannot trigger provider calls", fromContent.result?.result?.value);
+
+  // 6b. Configure a custom endpoint via the settings page and test it.
+  await page.send("Page.navigate", { url: `chrome-extension://${extensionId}/options/options.html` });
+  await sleep(500);
+  const configured = await page.send("Runtime.evaluate", {
+    expression: `(async () => {
+      await chrome.storage.local.set({ settings: { provider: "openai-compatible", apiKey: "sk-smoke-test-key-0000", model: "fake-model", baseUrl: "http://127.0.0.1:${WEB_PORT}/v1" } });
+      const reply = await chrome.runtime.sendMessage({ type: "FACTIT_TEST_PROVIDER" });
+      await chrome.storage.local.remove("settings");
+      return reply;
+    })()`,
+    awaitPromise: true, returnByValue: true,
+  });
+  const reply = configured.result?.result?.value;
+  const call = providerCalls[0];
+  check(
+    Boolean(reply && reply.ok && reply.model === "fake-model" && reply.sample === "OK") &&
+      Boolean(call && call.headers.authorization === "Bearer sk-smoke-test-key-0000" && call.body.messages?.length === 2),
+    "background reached custom provider endpoint", JSON.stringify(reply),
+  );
+  check(Boolean(call) && call.body.messages[0].role === "system" && call.body.messages[1].role === "user", "system and input sent as separate roles");
 
   const exceptions = page.events.filter((e) => e.method === "Runtime.exceptionThrown");
   check(exceptions.length === 0, "no runtime exceptions", exceptions.map((e) => e.params.exceptionDetails.text).join("; "));

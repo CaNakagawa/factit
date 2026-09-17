@@ -90,3 +90,72 @@ Node with jsdom, without a browser or an LLM.
 - Extraction quality is bounded by Readability; pages it cannot parse
   yield "no article", which is a valid result.
 
+---
+
+## ADR-004 - Provider interface is a text-completion primitive
+
+### Context
+
+ARCHITECTURE.md describes the provider concept as
+`analyze(document, configuration) -> AnalysisResult`. Implementing that
+literally would put prompt construction and output validation inside
+every adapter, so adding a provider would mean re-implementing the
+analysis engine.
+
+### Decision
+
+Adapters implement one low-level operation:
+
+    complete({ system, input, maxTokens }) -> { text, model, provider, finish, usage }
+
+`system` carries Fact It's instructions; `input` carries the untrusted
+article. Adapters must pass them to the model as separate fields/roles.
+Prompt versioning, schema validation and result normalization live in
+`analysis/` (V0.5) and are provider-independent.
+
+Adapters are plain objects (`configure`, `buildRequest`,
+`parseResponse`) registered in `providers/provider.js`; the shared HTTP
+round trip, timeout, status-to-error mapping and credential redaction
+live once in `providers/common.js`. `fetch` is injected so adapters are
+tested without network.
+
+Provider calls happen only in the background worker. The settings page
+asks the worker to test a connection; content scripts are refused.
+
+### Alternatives
+
+- `analyze()` per adapter: rejected (duplicated analysis logic).
+- Official SDKs: rejected for V1; no bundler, three providers, and the
+  OpenAI-compatible target needs raw HTTP anyway.
+
+### Tradeoffs
+
+- Provider-specific features (JSON mode, thinking controls) need an
+  explicit field in the request shape when V0.5 wants them.
+- Raw HTTP means Fact It owns error mapping and retries.
+
+---
+
+## ADR-005 - API keys in chrome.storage.local
+
+### Context
+
+BYOK needs the key available across browser sessions. Extensions have no
+OS-keychain access.
+
+### Decision
+
+Store settings including the API key in `chrome.storage.local`
+(`storage` permission). The settings page states plainly that this
+storage is not encrypted and recommends a spend-limited key. The key is
+read only by the background worker and the settings page; it is never
+sent to content scripts, never logged, and redacted from provider error
+messages.
+
+### Alternatives
+
+- `chrome.storage.session`: cleared on browser exit; re-entering the key
+  every session makes the extension impractical.
+- Encrypting with a user passphrase: adds a prompt on every analysis;
+  can be revisited if users ask for it.
+
