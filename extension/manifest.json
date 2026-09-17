@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Fact It",
+  "version": "0.1.0",
+  "description": "Transparent, preliminary AI-assisted analysis of online content. Know what you're reading.",
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content/content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  },
+  "permissions": []
+}
