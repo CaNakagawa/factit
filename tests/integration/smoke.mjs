@@ -16,6 +16,8 @@
 //      result after the run, and is absent on non-article pages
 //   9. clicking Details (a real click into the closed shadow root via
 //      the DOM domain) opens the panel with the analysis
+//  10. reloading the article shows the cached result with no provider
+//      call; Re-analyze makes exactly one; settings can clear the cache
 //
 // Requires a Chromium binary that honours --load-extension. Branded Google
 // Chrome (137+) silently ignores that flag, so this defaults to `chromium`.
@@ -335,6 +337,44 @@ try {
     const shot = await page.send("Page.captureScreenshot", { format: "png" });
     (await import("node:fs")).writeFileSync(process.env.FACTIT_SHOT, Buffer.from(shot.result.data, "base64"));
   }
+
+  // 10. Cache: reload the same article -> result from cache, zero calls.
+  const callsBeforeReload = providerCalls.length;
+  page.events.length = 0;
+  await page.send("Page.navigate", { url: `http://127.0.0.1:${WEB_PORT}/` });
+  await waitFor(() => consoleText().some((l) => l.startsWith("[Fact It] cached analysis found")), { tries: 30 });
+  const cachedState = await page.send("Runtime.evaluate", { expression: "document.getElementById('factit-bar-host')?.dataset.factitState", returnByValue: true });
+  check(cachedState.result?.result?.value === "result" && providerCalls.length === callsBeforeReload,
+    "reload shows cached result with zero provider calls", `state=${cachedState.result?.result?.value} calls=${providerCalls.length - callsBeforeReload}`);
+  const barText = await shadowText(page, "bar");
+  check(/from cache/.test(barText), "bar marks the result as cached", barText.slice(0, 120));
+
+  // Re-analyze from the panel: exactly one new call, result refreshed.
+  await clickShadowButton(page, "Details");
+  await sleep(200);
+  const reran = await clickShadowButton(page, "Re-analyze (uses tokens)");
+  await waitFor(() => consoleText().some((l) => l.includes("analysis requested (re-analyze)")), { tries: 20 });
+  await waitFor(() => consoleText().filter((l) => l.startsWith("[Fact It] analysis result:")).length >= 1, { tries: 50 });
+  await sleep(300);
+  const barAfterRerun = await shadowText(page, "bar");
+  check(reran && providerCalls.length === callsBeforeReload + 1 && !/from cache/.test(barAfterRerun),
+    "Re-analyze makes exactly one provider call and replaces the cached result", `calls=${providerCalls.length - callsBeforeReload}`);
+
+  // Settings page reports and clears the cache.
+  await page.send("Page.navigate", { url: `chrome-extension://${extensionId}/options/options.html` });
+  await sleep(600);
+  const cacheUi = await page.send("Runtime.evaluate", {
+    expression: `(async () => {
+      const before = document.getElementById("cacheCount").textContent;
+      document.getElementById("clearCache").click();
+      await new Promise((r) => setTimeout(r, 400));
+      return { before, after: document.getElementById("cacheCount").textContent, status: document.getElementById("cacheStatus").textContent };
+    })()`,
+    awaitPromise: true, returnByValue: true,
+  });
+  const cu = cacheUi.result?.result?.value || {};
+  check(/^1 cached analysis\./.test(cu.before) && /^0 cached analyses\./.test(cu.after) && /Removed 1 cached analysis\./.test(cu.status),
+    "settings page shows and clears the cache", JSON.stringify(cu));
 
   // 8c. No bar on a page without an article.
   await page.send("Page.navigate", { url: `http://127.0.0.1:${WEB_PORT}/plain` });

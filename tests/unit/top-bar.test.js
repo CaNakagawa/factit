@@ -121,3 +121,11 @@ test("dismiss removes the bar from the page", () => {
   bar.root.querySelector("button.close").click();
   assert.equal(document.getElementById("factit-bar-host"), null);
 });
+
+test("cached results are marked in the bar", () => {
+  const bar = createTopBar();
+  bar.setResult(result(), { cached: true });
+  assert.match(text(bar), /from cache · moderate confidence/);
+  bar.setResult(result());
+  assert.doesNotMatch(text(bar), /from cache/);
+});

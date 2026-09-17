@@ -1,4 +1,4 @@
-// Fact It - content script (V0.7).
+// Fact It - content script (V0.8).
 //
 // Runs in an isolated world on http/https pages. It must never receive
 // API keys. Loaded after vendor/Readability*.js, utils/hash.js,
@@ -6,10 +6,12 @@
 // which provide the globals used here.
 //
 // Extracts and normalizes the article locally and shows the Fact It bar
-// on article pages. Analysis runs only when the user clicks the bar's
-// Analyze button: the ArticleDocument goes to the background worker, the
-// validated AnalysisResult comes back and the bar/panel render it. The
-// toolbar button only shows the bar or toggles the panel.
+// on article pages. On load it asks the background for a cached result
+// (by content hash; no tokens). Analysis runs only when the user clicks
+// the bar's Analyze button, or Re-analyze in the panel: the
+// ArticleDocument goes to the background worker, the validated
+// AnalysisResult comes back and the bar/panel render it. The toolbar
+// button only shows the bar or toggles the panel.
 
 (() => {
   const deps = { Readability, isProbablyReaderable };
@@ -46,6 +48,7 @@
   let panel = null;
   let running = false;
   let lastResult = null; // kept so the bar can be restored after dismiss without re-running
+  let lastCached = false;
 
   function ensureBar() {
     if (!bar || !bar.host.isConnected) {
@@ -55,12 +58,16 @@
         onDetails: () => panel && panel.toggle(),
       });
       panel = FactIt.createPanel(bar.root);
-      if (lastResult) {
-        panel.setResult(lastResult);
-        bar.setResult(lastResult);
-      }
+      if (lastResult) showResult(lastResult, lastCached);
     }
     return bar;
+  }
+
+  function showResult(result, cached) {
+    lastResult = result;
+    lastCached = cached;
+    panel.setResult(result, { cached, onReanalyze: () => runAnalysis({ force: true }) });
+    bar.setResult(result, { cached });
   }
 
   // Toolbar click: never analyzes. Shows the bar (idle or last result) and,
@@ -81,9 +88,10 @@
 
   // Extract, hand the document to the background for analysis, render
   // and log the outcome. Returns the reply so callers can inspect it.
-  async function runAnalysis() {
+  async function runAnalysis(options = {}) {
+    const force = options.force === true;
     if (running) return { ok: false, error: { kind: "busy", message: "Analysis already running." } };
-    if (lastResult) return { ok: true, result: lastResult, cached: true }; // no re-run without an explicit Re-analyze (V0.8)
+    if (lastResult && !force) return { ok: true, result: lastResult, cached: true }; // only Re-analyze re-runs
     running = true;
     const ui = ensureBar();
     try {
@@ -94,17 +102,15 @@
         ui.setNoArticle();
         return { ok: false, error: { kind: "no_article", message: "No article detected on this page." } };
       }
-      console.log("[Fact It] analysis requested:", summarize(article));
-      const reply = await chrome.runtime.sendMessage({ type: "FACTIT_ANALYZE", article });
+      console.log(`[Fact It] analysis requested${force ? " (re-analyze)" : ""}:`, summarize(article));
+      const reply = await chrome.runtime.sendMessage({ type: "FACTIT_ANALYZE", article, force });
       if (reply && reply.ok) {
         const r = reply.result;
         console.log(
-          `[Fact It] analysis (${r.analysis.verification_level}) support=${r.analysis.overall_factual_support} confidence=${r.analysis.confidence} claims=${r.claims.length} flags=${r.flags.length} framing=${r.framing.detected ? r.framing.type + "/" + r.framing.strength : "none"} via ${r.meta.provider}/${r.meta.model}`,
+          `[Fact It] analysis (${r.analysis.verification_level}${reply.cached ? ", cached" : ""}) support=${r.analysis.overall_factual_support} confidence=${r.analysis.confidence} claims=${r.claims.length} flags=${r.flags.length} framing=${r.framing.detected ? r.framing.type + "/" + r.framing.strength : "none"} via ${r.meta.provider}/${r.meta.model}`,
         );
         console.log("[Fact It] analysis result:", r);
-        lastResult = r;
-        panel.setResult(r);
-        ui.setResult(r);
+        showResult(r, Boolean(reply.cached));
       } else {
         const err = (reply && reply.error) || { kind: "unknown", message: "No reply from background." };
         console.warn(`[Fact It] analysis failed (${err.kind}): ${err.message}`, err.details || "");
@@ -132,10 +138,22 @@
   });
 
   console.log("[Fact It] content script loaded:", location.href);
-  buildArticleDocument().then((article) => {
+  buildArticleDocument().then(async (article) => {
     console.log("[Fact It] article:", summarize(article));
-    // Idle bar only where there is something to analyze (ADR-006).
-    if (article) ensureBar();
+    if (!article) return;
+    // Idle bar only where there is something to analyze (ADR-006), or the
+    // cached result for this exact content (no tokens).
+    const ui = ensureBar();
+    try {
+      const reply = await chrome.runtime.sendMessage({ type: "FACTIT_LOOKUP", content_hash: article.content_hash });
+      if (reply && reply.ok && reply.result) {
+        console.log("[Fact It] cached analysis found:", reply.cached_at);
+        showResult(reply.result, true);
+      }
+    } catch {
+      // Background unavailable; stay idle.
+    }
+    void ui;
   });
 
   chrome.runtime.sendMessage({ type: "FACTIT_PING" }, (response) => {

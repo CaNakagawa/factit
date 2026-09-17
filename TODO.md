@@ -2,73 +2,61 @@
 
 ## CURRENT
 
-V0.7 - Expanded Panel
+V0.8 - Local Cache
 
 ## Objective
 
-Clicking the Fact It bar opens the analysis details.
+Never pay twice for the same article: cache validated analyses by
+content hash and offer an explicit Re-analyze.
 
 ## Tasks
 
-- [x] ui/panel.js - renders into the bar's closed shadow root; open /
-      close / toggle; `data-factit-panel` on the host
-- [x] Compact layout: overview (support + confidence + "no external
-      sources" notice), Conclusion, "Show detailed analysis" toggle,
-      one-line provenance (model, provider, prompt version, time,
-      truncation / dropped-item notes)
-- [x] Details (collapsed by default): claims (classification badge,
-      allegation marker, confidence, explanation), flags, framing (own
-      section, independence note)
-- [x] Prompt 1.0.1: conclusion-first summary (3-6 sentences, ~700
-      chars, no lists); manipulation mentioned only when present;
-      genre-inherent calls to action are not framing
-- [x] Bar: Details button and bar-body click in result state
-- [x] Content script wires bar and panel
-- [x] 8 unit tests (sections, humanized enums, framing separation,
-      empty states, hostile strings, collapse/toggle, bar affordance)
-- [x] Smoke test: real click on Details through the closed shadow root
-      (CDP DOM domain) and panel content read back
+- [x] storage/cache.js - entries `analysis:<hash>` + LRU index, max
+      200; stored results re-validated on read; article text never
+      stored
+- [x] Background: FACTIT_LOOKUP (content scripts), FACTIT_ANALYZE
+      honours the cache unless `force`, stores every result;
+      FACTIT_CACHE_STATS / FACTIT_CACHE_CLEAR (extension pages)
+- [x] Content script: cache lookup on load (no tokens); bar shows
+      `from cache`; panel shows `shown from local cache` and
+      **Re-analyze (uses tokens)**
+- [x] Settings page: cache count + Clear analysis cache
+- [x] PRIVACY.md and docs/DEVELOPMENT.md updated
+- [x] 9 new unit tests (cache hit/miss/corrupt/tamper/LRU/clear; bar
+      and panel cached states); smoke test: reload -> cached result
+      with zero calls, Re-analyze -> one call, settings clears cache
 
 ## Acceptance Criteria
 
-- [x] Displays claims, classification, confidence, flags, framing,
-      explanations, provider, model and preliminary status.
-- [x] Framing is visually and textually separate from factual support.
-- [x] Model strings can never become markup.
-- [x] Panel is unreachable from page CSS/JS.
-- [x] No new permissions.
+- [x] Cache holds content hash, analysis, provider, model, prompt
+      version, schema version, timestamp.
+- [x] Revisiting an unchanged article costs no tokens.
+- [x] Re-analyze is explicit and the only way to re-run.
+- [x] Stored data cannot escalate the verification level or inject
+      markup (re-validated on read; UI renders text only).
+- [x] No new permissions (`storage` already granted).
 
 ## Status
 
-V0.7 complete on 2026-09-17.
+V0.8 complete on 2026-09-17.
 
 Notes:
 
-- Enum codes are humanized for display (MISSING_CONTEXT -> "Missing
-  context"); the schema values are unchanged in the data.
-- Timestamps use the browser locale; UI strings are English.
-- Panel width is min(440px, 100vw); on phones it fills the width.
-- Live run 2026-09-17 (BBC News Brasil, deepseek-flash): 20 claims /
-  9 flags, Portuguese output; the 1.0.0 summary hit the 1200-char cap,
-  which motivated the 1.0.1 conclusion format and the collapsed
-  details.
-
-Fix 0.7.1: the toolbar button used to run the analysis and re-ran it
-on every click. It now only shows the bar / toggles the panel; only
-the bar's Analyze button calls the provider, and a page with a result
-cannot be re-run until Re-analyze (V0.8). Smoke test asserts one
-provider call across repeated clicks.
+- Cache key is the content hash only; a different model does not
+  invalidate an entry (the panel shows which model produced it).
+- No TTL; LRU cap of 200 entries (~2 MB worst case in storage.local).
+- A schema_version bump makes all existing entries misses.
 
 ## Follow-ups noted (not in this milestone)
 
 - Extraction quality: on heise.de Readability kept a related-article
   teaser and audio-player labels; the model flagged them as foreign
   fragments. Consider a post-filter for aside/player widgets or
-  Readability options (V0.9 hardening or a V0.2 follow-up).
+  Readability options (V0.9 hardening).
 
 ## NEXT
 
-V0.8 - Local Cache (see PLAN.md). Not started.
+V0.9 - Security Hardening (see PLAN.md). Not started.
 
 ## DO NOT IMPLEMENT YET
 

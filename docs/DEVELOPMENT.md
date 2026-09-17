@@ -117,8 +117,22 @@ Fact It bar and analysis:
 
 Analysis runs only when you click **Analyze** (ADR-006); nothing is
 sent to a provider on page load or on toolbar clicks. Once a page has a
-result there is no way to re-run it until V0.8 adds **Re-analyze**,
-so repeated clicks cannot spend tokens.
+result, only **Re-analyze (uses tokens)** in the panel runs it again.
+
+Local cache:
+
+- On load, the content script sends the article's content hash to the
+  background, which returns a stored result if there is one. The bar
+  then shows the result immediately with `from cache`; the panel's
+  provenance line says `shown from local cache`. No provider call.
+- Results are stored in `chrome.storage.local` under
+  `analysis:<hash>` (result + cached_at) with an `analysis_index` for
+  LRU eviction (max 200 entries). Article text is never stored.
+- A changed article has a different hash and starts idle. A different
+  provider or model does not invalidate a cached result; the panel
+  shows which model produced it, and Re-analyze replaces it.
+- The settings page shows the entry count and has **Clear analysis
+  cache**.
 
 The bar and the panel live in one closed shadow root on
 `document.documentElement` (`#factit-bar-host`, `data-factit-state` =
@@ -165,11 +179,11 @@ npm run vendor
 
 SECURITY.md requires a documented reason for every permission.
 
-Current state (V0.7):
+Current state (V0.8):
 
 | Manifest key         | Value                          | Reason |
 |----------------------|--------------------------------|--------|
-| `permissions`        | `["storage"]`                  | `chrome.storage.local` holds the provider settings and API key (V0.4). Not encrypted; stated on the settings page. |
+| `permissions`        | `["storage"]`                  | `chrome.storage.local` holds the provider settings and API key (V0.4) and the analysis cache (V0.8). Not encrypted; stated on the settings page. |
 | `action`             | toolbar button                 | Not a permission. Triggers on-demand analysis; `chrome.action.onClicked` provides the tab id without the `tabs` permission. |
 | `host_permissions`   | not declared                   | Provider requests from the background worker work without it: Chrome grants host access for the content-script match patterns below, which already cover every http/https origin. Verified in `tests/integration/smoke.mjs` against a non-CORS local server. |
 | `content_scripts[].matches` | `http://*/*`, `https://*/*` | Fact It analyses ordinary web pages, so the content script must be able to run on any http/https page. `<all_urls>` is deliberately not used; it would also cover `file://` and other schemes. Chrome shows this as "Read and change all your data on all websites" at install time. |
@@ -198,6 +212,7 @@ extension/
   providers/openai.js            adapters (also anthropic.js,
                                  openai-compatible.js)
   storage/settings.js            provider settings + key (storage.local)
+  storage/cache.js               analysis cache by content hash (LRU)
   vendor/                        committed copy of Mozilla Readability
   options/                       settings page (options_ui, ES module)
 scripts/vendor-readability.mjs   refreshes extension/vendor/

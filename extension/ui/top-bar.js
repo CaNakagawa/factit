@@ -1,4 +1,4 @@
-// Fact It - top bar (V0.7).
+// Fact It - top bar (V0.8).
 //
 // Thin indicator injected at the top of the page. Classic script running
 // in the content-script world; exposes FactIt.createTopBar.
@@ -130,8 +130,11 @@
         render("no-article", el("span", "text muted", "No article detected on this page"));
       },
 
-      /** @param {object} result validated AnalysisResult */
-      setResult(result) {
+      /**
+       * @param {object} result validated AnalysisResult
+       * @param {{ cached?: boolean }} [options]
+       */
+      setResult(result, options = {}) {
         const support = Number(result.analysis.overall_factual_support) || 0;
         const confidence = Number(result.analysis.confidence) || 0;
         const claims = Array.isArray(result.claims) ? result.claims.length : 0;
@@ -146,9 +149,10 @@
         const label = claims === 0
           ? "No verifiable claims found"
           : `Factual support: ${supportLabel(support)}`;
-        const detail = claims === 0
+        let detail = claims === 0
           ? confidenceLabel(confidence)
           : `${confidenceLabel(confidence)} · ${claims} claim${claims === 1 ? "" : "s"} · ${flags} flag${flags === 1 ? "" : "s"}`;
+        if (options.cached) detail = `from cache · ${detail}`;
 
         const nodes = [
           meter,

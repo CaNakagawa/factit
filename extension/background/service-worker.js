@@ -1,4 +1,4 @@
-// Fact It - background service worker (V0.6).
+// Fact It - background service worker (V0.8).
 //
 // Privileged extension context. Provider requests are made here so that
 // API keys never reach content scripts or the webpage. Orchestrates:
@@ -10,10 +10,12 @@
 // Only the Analyze button ever triggers a provider call.
 
 import { createSettingsStore } from "../storage/settings.js";
+import { createAnalysisCache } from "../storage/cache.js";
 import { createProvider, ProviderError } from "../providers/provider.js";
 import { analyzeArticle, AnalysisError, articleDocumentProblem } from "../analysis/engine.js";
 
 const settings = createSettingsStore();
+const cache = createAnalysisCache();
 
 chrome.runtime.onInstalled.addListener((details) => {
   console.log(`[Fact It] service worker installed (${details.reason})`);
@@ -79,12 +81,24 @@ async function testProvider() {
   };
 }
 
-async function analyze(article) {
+// force=true bypasses the cache (Re-analyze). Results are always stored.
+async function analyze(article, force) {
   const problem = articleDocumentProblem(article);
   if (problem) throw new AnalysisError("invalid_output", `Invalid article document: ${problem}.`);
+  if (!force) {
+    const hit = await cache.get(article.content_hash);
+    if (hit) return { ok: true, result: hit.result, cached: true, cached_at: hit.cached_at };
+  }
   const provider = createProvider(await settings.get());
   const result = await analyzeArticle(article, provider);
-  return { ok: true, result };
+  const { cached_at } = await cache.put(article.content_hash, result);
+  return { ok: true, result, cached: false, cached_at };
+}
+
+// Cache lookup by hash only; never triggers a provider call.
+async function lookup(hash) {
+  const hit = await cache.get(typeof hash === "string" ? hash : "");
+  return hit ? { ok: true, result: hit.result, cached: true, cached_at: hit.cached_at } : { ok: true, result: null };
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -105,10 +119,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case "FACTIT_ANALYZE":
       if (!isContentScript(sender)) return false;
-      analyze(message.article)
+      analyze(message.article, message.force === true)
         .then(sendResponse)
         .catch((error) => sendResponse({ ok: false, error: errorDetail(error) }));
       return true; // async
+
+    case "FACTIT_LOOKUP":
+      if (!isContentScript(sender)) return false;
+      lookup(message.content_hash)
+        .then(sendResponse)
+        .catch(() => sendResponse({ ok: true, result: null }));
+      return true;
+
+    case "FACTIT_CACHE_STATS":
+      if (!isExtensionPage(sender)) return false;
+      cache.stats().then(sendResponse).catch(() => sendResponse({ count: 0 }));
+      return true;
+
+    case "FACTIT_CACHE_CLEAR":
+      if (!isExtensionPage(sender)) return false;
+      cache.clear().then(sendResponse).catch(() => sendResponse({ removed: 0 }));
+      return true;
 
     case "FACTIT_OPEN_SETTINGS":
       if (!isContentScript(sender)) return false;

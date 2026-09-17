@@ -31,3 +31,12 @@ Local browser storage does not make API credentials completely
 risk-free.
 
 The security limitations of BYOK must be documented transparently.
+
+## Local analysis cache
+
+Analysis results are stored in the browser profile's extension storage,
+keyed by a hash of the article text, so an unchanged article is not
+sent to the provider again. The article text itself is not stored; the
+stored result contains the model's output, which may quote claims from
+the article. The settings page can clear this cache at any time.
+

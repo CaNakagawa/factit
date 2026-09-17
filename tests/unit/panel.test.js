@@ -171,3 +171,21 @@ test("bar result state offers Details and the bar body opens it", () => {
   bar.root.querySelector("button.close").click(); // ✕ must not open details
   assert.equal(opened, 2);
 });
+
+test("cached results show the cache note and a Re-analyze action", () => {
+  const bar = createTopBar();
+  const panel = createPanel(bar.root);
+  let reran = 0;
+  panel.setResult(result(), { cached: true, onReanalyze: () => reran++ });
+  const p = bar.root.querySelector(".panel");
+  assert.match(p.querySelector(".compact").textContent, /shown from local cache/);
+  const again = [...p.querySelectorAll("button")].find((b) => /Re-analyze/.test(b.textContent));
+  assert.ok(again);
+  assert.match(again.textContent, /uses tokens/);
+  again.click();
+  assert.equal(reran, 1);
+
+  panel.setResult(result(), {});
+  assert.equal([...bar.root.querySelectorAll(".panel button")].some((b) => /Re-analyze/.test(b.textContent)), false);
+  assert.doesNotMatch(bar.root.querySelector(".panel .compact").textContent, /cache/);
+});

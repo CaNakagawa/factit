@@ -115,4 +115,17 @@ $("test").addEventListener("click", async () => {
   }
 });
 
-load();
+async function refreshCacheCount() {
+  const stats = await chrome.runtime.sendMessage({ type: "FACTIT_CACHE_STATS" });
+  const n = stats && Number.isFinite(stats.count) ? stats.count : 0;
+  $("cacheCount").textContent = `${n} cached ${n === 1 ? "analysis" : "analyses"}.`;
+}
+
+$("clearCache").addEventListener("click", async () => {
+  const reply = await chrome.runtime.sendMessage({ type: "FACTIT_CACHE_CLEAR" });
+  const n = reply && reply.removed ? reply.removed : 0;
+  $("cacheStatus").textContent = `Removed ${n} cached ${n === 1 ? "analysis" : "analyses"}.`;
+  await refreshCacheCount();
+});
+
+load().then(refreshCacheCount);

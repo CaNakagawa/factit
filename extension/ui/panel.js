@@ -1,4 +1,4 @@
-// Fact It - expanded analysis panel (V0.7).
+// Fact It - expanded analysis panel (V0.8).
 //
 // Layout: verdict and conclusion first; claims, flags, framing and full
 // metadata are behind a "Show detailed analysis" toggle.
@@ -47,6 +47,12 @@
     .panel .toggle:hover { background: #3e4c59; }
     .panel .details[hidden] { display: none; }
     .panel .compact { font-size: 12px; color: #9aa5b1; margin-top: 12px; }
+    .panel .actions { display: flex; gap: 8px; margin-top: 10px; }
+    .panel .secondary {
+      all: initial; cursor: pointer; font: 12px system-ui, sans-serif; color: #cbd2d9;
+      border: 1px solid #52606d; border-radius: 3px; padding: 4px 8px;
+    }
+    .panel .secondary:hover { background: #3e4c59; color: #f5f7fa; }
   `;
 
   function humanize(code) {
@@ -134,13 +140,13 @@
     return wrap;
   }
 
-  function renderMetaCompact(meta) {
+  function renderMetaCompact(meta, cached) {
     const when = meta.analyzed_at ? new Date(meta.analyzed_at).toLocaleString() : "unknown time";
     const parts = [
       "AI preliminary · not externally verified",
       `${meta.model || "unknown model"} via ${meta.provider || "unknown provider"}`,
       `prompt ${meta.prompt_version || "?"}`,
-      when,
+      cached ? `analyzed ${when} · shown from local cache` : when,
     ];
     const wrap = el("div", "compact");
     wrap.append(el("div", "", parts.join(" · ")));
@@ -198,7 +204,15 @@
     });
     setLabel();
 
-    frag.append(toggle, details, renderMetaCompact(result.meta || {}));
+    frag.append(toggle, details, renderMetaCompact(result.meta || {}, options.cached));
+
+    if (options.onReanalyze) {
+      const actions = el("div", "actions");
+      const again = el("button", "secondary", "Re-analyze (uses tokens)");
+      again.addEventListener("click", () => options.onReanalyze());
+      actions.append(again);
+      frag.append(actions);
+    }
     return frag;
   }
 
@@ -219,10 +233,16 @@
 
     const api = {
       element: panel,
-      setResult(next) {
+      /**
+       * @param {object} next validated AnalysisResult
+       * @param {{ cached?: boolean, onReanalyze?: Function }} [options]
+       */
+      setResult(next, options = {}) {
         result = next;
         host.dataset.factitDetails = "hidden";
         panel.replaceChildren(renderPanelContent(result, () => api.close(), {
+          cached: Boolean(options.cached),
+          onReanalyze: options.onReanalyze,
           onToggleDetails: (open) => { host.dataset.factitDetails = open ? "shown" : "hidden"; },
         }));
       },
