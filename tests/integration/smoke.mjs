@@ -14,6 +14,8 @@
 //      pages cannot submit articles for analysis
 //   8. the Fact It bar is idle on load (no provider call), shows the
 //      result after the run, and is absent on non-article pages
+//   9. clicking Details (a real click into the closed shadow root via
+//      the DOM domain) opens the panel with the analysis
 //
 // Requires a Chromium binary that honours --load-extension. Branded Google
 // Chrome (137+) silently ignores that flag, so this defaults to `chromium`.
@@ -247,7 +249,7 @@ try {
   check(
     Boolean(r) && r.schema_version === "1.0" && r.analysis.verification_level === "AI_PRELIMINARY" &&
       r.claims.length === 1 && r.flags[0].type === "EXTERNAL_VERIFICATION_REQUIRED" && r.meta.model === "fake-model" &&
-      /^[0-9a-f]{64}$/.test(r.meta.content_hash) && r.meta.prompt_version === "1.0.0",
+      /^[0-9a-f]{64}$/.test(r.meta.content_hash) && r.meta.prompt_version === "1.0.1",
     "analysis round trip via content script",
     r ? `support=${r.analysis.overall_factual_support} level=${r.analysis.verification_level} claims=${r.claims.length}` : JSON.stringify(runReply) + (analyzed.result?.exceptionDetails ? " exception=" + analyzed.result.exceptionDetails.exception?.description : ""),
   );
@@ -262,8 +264,51 @@ try {
     returnByValue: true,
   });
   check(barAfter.result?.result?.value?.state === "result" && barAfter.result?.result?.value?.shadow === true, "bar shows result in a closed shadow root", JSON.stringify(barAfter.result?.result?.value));
+
+  // 9. Real click on "Details" inside the closed shadow root, then read the panel.
+  await page.send("DOM.enable");
+  const tree = await page.send("DOM.getDocument", { depth: -1, pierce: true });
+  const findByText = (node, text) => {
+    if (node.nodeName === "BUTTON" && (node.children || []).some((c) => c.nodeValue === text)) return node;
+    for (const child of [...(node.children || []), ...(node.shadowRoots || [])]) {
+      const hit = findByText(child, text);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  const detailsButton = findByText(tree.result.root, "Details");
+  let panelText = "";
+  if (detailsButton) {
+    const box = await page.send("DOM.getBoxModel", { nodeId: detailsButton.nodeId });
+    const q = box.result.model.content;
+    const x = (q[0] + q[2]) / 2, y = (q[1] + q[5]) / 2;
+    for (const type of ["mousePressed", "mouseReleased"]) {
+      await page.send("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 });
+    }
+    await sleep(200);
+    const after = await page.send("DOM.getDocument", { depth: -1, pierce: true });
+    const collect = (node, out) => {
+      if (node.nodeType === 3) out.push(node.nodeValue);
+      for (const child of [...(node.children || []), ...(node.shadowRoots || [])]) collect(child, out);
+      return out;
+    };
+    const panelNode = (function find(node) {
+      if (node.nodeName === "SECTION" && (node.attributes || []).includes("panel")) return node;
+      for (const child of [...(node.children || []), ...(node.shadowRoots || [])]) { const h = find(child); if (h) return h; }
+      return null;
+    })(after.result.root);
+    panelText = panelNode ? collect(panelNode, []).join(" ").replace(/\s+/g, " ") : "";
+  }
+  const panelState = await page.send("Runtime.evaluate", { expression: "document.getElementById('factit-bar-host')?.dataset.factitPanel", returnByValue: true });
+  check(
+    Boolean(detailsButton) && panelState.result?.result?.value === "open" &&
+      /Claims \(1\)/.test(panelText) && /The city council voted 7-2/.test(panelText) && /Framing/.test(panelText) &&
+      /fake-model/.test(panelText) && /not externally verified/.test(panelText),
+    "Details click opens the panel with claims, framing and provider info",
+    detailsButton ? `panel=${panelState.result?.result?.value} chars=${panelText.length}` : "Details button not found",
+  );
   if (process.env.FACTIT_SHOT) {
-    const shot = await page.send("Page.captureScreenshot", { format: "png", clip: { x: 0, y: 0, width: 1000, height: 120, scale: 1 } });
+    const shot = await page.send("Page.captureScreenshot", { format: "png" });
     (await import("node:fs")).writeFileSync(process.env.FACTIT_SHOT, Buffer.from(shot.result.data, "base64"));
   }
 

@@ -1,4 +1,4 @@
-// Fact It - top bar (V0.6).
+// Fact It - top bar (V0.7).
 //
 // Thin indicator injected at the top of the page. Classic script running
 // in the content-script world; exposes FactIt.createTopBar.
@@ -69,7 +69,7 @@
   }
 
   /**
-   * @param {{ onAnalyze?: Function, onOpenSettings?: Function }} handlers
+   * @param {{ onAnalyze?: Function, onOpenSettings?: Function, onDetails?: Function }} handlers
    */
   function createTopBar(handlers = {}) {
     const existing = document.getElementById(HOST_ID);
@@ -85,6 +85,12 @@
 
     const bar = el("div", "bar");
     bar.setAttribute("role", "status");
+    // In the result state the whole bar (except buttons) opens the details.
+    bar.addEventListener("click", (event) => {
+      if (host.dataset.factitState !== "result" || !handlers.onDetails) return;
+      if (event.target && event.target.closest && event.target.closest("button")) return;
+      handlers.onDetails();
+    });
     const main = el("div", "main");
     const close = el("button", "close", "✕");
     close.title = "Hide Fact It on this page";
@@ -144,11 +150,15 @@
           ? confidenceLabel(confidence)
           : `${confidenceLabel(confidence)} · ${claims} claim${claims === 1 ? "" : "s"} · ${flags} flag${flags === 1 ? "" : "s"}`;
 
-        render("result",
+        const nodes = [
           meter,
           el("span", "text label", label),
           el("span", "text muted detail", detail),
-          el("span", "tag long", PRELIMINARY_LABEL));
+          el("span", "tag long", PRELIMINARY_LABEL),
+        ];
+        if (handlers.onDetails) nodes.push(actionButton("Details", handlers.onDetails));
+        render("result", ...nodes);
+        bar.style.cursor = handlers.onDetails ? "pointer" : "";
       },
 
       /** @param {{ kind?: string, message?: string }} error */

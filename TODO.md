@@ -2,50 +2,56 @@
 
 ## CURRENT
 
-V0.6 - Fact It Bar
+V0.7 - Expanded Panel
 
 ## Objective
 
-Inject a thin indicator at the top of the webpage representing
-FACTUAL SUPPORT only.
+Clicking the Fact It bar opens the analysis details.
 
 ## Tasks
 
-- [x] ui/top-bar.js - closed shadow root, fixed 28px bar, states idle /
-      loading / result / error / no-article, dismiss
-- [x] Support and confidence labels: descriptive wording, no verdict
-      words (per skills/ux-review)
-- [x] Preliminary status always visible ("AI preliminary · not
-      externally verified")
-- [x] Content script shows the idle bar on article pages; Analyze
-      button and toolbar click share one run path; result/error
-      rendered in the bar
-- [x] Background: FACTIT_OPEN_SETTINGS from content scripts
-- [x] 7 unit tests (states, thresholds, hostile strings as text, closed
-      root, dismiss); smoke test checks idle-on-load with zero provider
-      calls, result state, no bar on non-article pages
+- [x] ui/panel.js - renders into the bar's closed shadow root; open /
+      close / toggle; `data-factit-panel` on the host
+- [x] Compact layout: overview (support + confidence + "no external
+      sources" notice), Conclusion, "Show detailed analysis" toggle,
+      one-line provenance (model, provider, prompt version, time,
+      truncation / dropped-item notes)
+- [x] Details (collapsed by default): claims (classification badge,
+      allegation marker, confidence, explanation), flags, framing (own
+      section, independence note)
+- [x] Prompt 1.0.1: conclusion-first summary (3-6 sentences, ~700
+      chars, no lists); manipulation mentioned only when present;
+      genre-inherent calls to action are not framing
+- [x] Bar: Details button and bar-body click in result state
+- [x] Content script wires bar and panel
+- [x] 8 unit tests (sections, humanized enums, framing separation,
+      empty states, hostile strings, collapse/toggle, bar affordance)
+- [x] Smoke test: real click on Details through the closed shadow root
+      (CDP DOM domain) and panel content read back
 
 ## Acceptance Criteria
 
-- [x] Indicator represents overall_factual_support only; framing,
-      neutrality, source popularity and community opinion play no part.
-- [x] Inactive by default: no provider call until the user clicks.
-- [x] Model strings can never become markup in the page.
-- [x] Page CSS/JS cannot restyle or read the bar.
+- [x] Displays claims, classification, confidence, flags, framing,
+      explanations, provider, model and preliminary status.
+- [x] Framing is visually and textually separate from factual support.
+- [x] Model strings can never become markup.
+- [x] Panel is unreachable from page CSS/JS.
 - [x] No new permissions.
 
 ## Status
 
-V0.6 complete on 2026-09-17.
+V0.7 complete on 2026-09-17.
 
 Notes:
 
-- Bar is a fixed overlay; it does not push page content. Sites with
-  their own fixed headers are partly covered by 28px until dismissed.
-- UI strings are English; analysis text follows the article language.
-- Clicking the bar body does nothing yet (V0.7 opens the panel).
-- Live run 2026-09-17 (heise.de, deepseek-flash): bar rendered
-  0.72 / moderate confidence / 8 claims / 4 flags.
+- Enum codes are humanized for display (MISSING_CONTEXT -> "Missing
+  context"); the schema values are unchanged in the data.
+- Timestamps use the browser locale; UI strings are English.
+- Panel width is min(440px, 100vw); on phones it fills the width.
+- Live run 2026-09-17 (BBC News Brasil, deepseek-flash): 20 claims /
+  9 flags, Portuguese output; the 1.0.0 summary hit the 1200-char cap,
+  which motivated the 1.0.1 conclusion format and the collapsed
+  details.
 
 ## Follow-ups noted (not in this milestone)
 
@@ -53,16 +59,13 @@ Notes:
   teaser and audio-player labels; the model flagged them as foreign
   fragments. Consider a post-filter for aside/player widgets or
   Readability options (V0.9 hardening or a V0.2 follow-up).
-- Prompt 1.0.1: mention manipulation attempts only when present; a
-  call-to-action tone in security advisories is not ACTIVIST framing.
 
 ## NEXT
 
-V0.7 - Expanded Panel (see PLAN.md). Not started.
+V0.8 - Local Cache (see PLAN.md). Not started.
 
 ## DO NOT IMPLEMENT YET
 
-- Local cache
 - Evidence Engine
 - Community
 - Authentication

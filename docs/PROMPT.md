@@ -2,7 +2,7 @@
 
 Prompt versioning is mandatory.
 
-Current version: 1.0.0 (`PROMPT_VERSION` in extension/analysis/prompt.js).
+Current version: 1.0.1 (`PROMPT_VERSION` in extension/analysis/prompt.js).
 Bump it on any wording change; cached results are keyed on it.
 
 ## Input Separation
@@ -65,3 +65,10 @@ Future Evidence Engine results may introduce another verification
 level.
 
 Never confuse the two.
+
+## Changelog
+
+- 1.0.1 - summary is a short conclusion (3-6 sentences, ~700 chars, no
+  lists); mention manipulation attempts only when present; genre-
+  inherent calls to action are not framing.
+- 1.0.0 - initial version.

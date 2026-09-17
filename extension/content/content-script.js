@@ -1,4 +1,4 @@
-// Fact It - content script (V0.6).
+// Fact It - content script (V0.7).
 //
 // Runs in an isolated world on http/https pages. It must never receive
 // API keys. Loaded after vendor/Readability*.js, utils/hash.js,
@@ -42,6 +42,7 @@
   }
 
   let bar = null;
+  let panel = null;
   let running = false;
 
   function ensureBar() {
@@ -49,7 +50,9 @@
       bar = FactIt.createTopBar({
         onAnalyze: () => runAnalysis(),
         onOpenSettings: () => chrome.runtime.sendMessage({ type: "FACTIT_OPEN_SETTINGS" }),
+        onDetails: () => panel && panel.toggle(),
       });
+      panel = FactIt.createPanel(bar.root);
     }
     return bar;
   }
@@ -76,6 +79,7 @@
           `[Fact It] analysis (${r.analysis.verification_level}) support=${r.analysis.overall_factual_support} confidence=${r.analysis.confidence} claims=${r.claims.length} flags=${r.flags.length} framing=${r.framing.detected ? r.framing.type + "/" + r.framing.strength : "none"} via ${r.meta.provider}/${r.meta.model}`,
         );
         console.log("[Fact It] analysis result:", r);
+        panel.setResult(r);
         ui.setResult(r);
       } else {
         const err = (reply && reply.error) || { kind: "unknown", message: "No reply from background." };

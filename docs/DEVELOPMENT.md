@@ -103,14 +103,24 @@ Fact It bar and analysis:
    full AnalysisResult (docs/ANALYSIS_SCHEMA.md).
 4. Errors show in the bar with **Retry**, or **Open settings** when the
    provider is not configured. ✕ hides the bar for this page load.
+5. After a result, click **Details** (or anywhere on the bar) to open
+   the panel. It opens compact: support and confidence, the notice
+   that no external sources were consulted, the **Conclusion**, a
+   **Show detailed analysis** button, and one line of provenance
+   (model, provider, prompt version, time, truncation / dropped-item
+   notes). The button reveals claims (classification, allegation
+   marker, confidence, explanation), flags and framing, the latter in
+   its own section with the note that it does not affect factual
+   support. ✕ or Details closes the panel.
 
 Analysis runs only when you click (ADR-006); nothing is sent to a
 provider on page load. Each click costs tokens on paid providers.
 
-The bar lives in a closed shadow root on `document.documentElement`
-(`#factit-bar-host`, `data-factit-state` = idle | loading | result |
-error | no-article). Page CSS cannot restyle it and page scripts cannot
-read it. All text is set via `textContent`; model output is never
+The bar and the panel live in one closed shadow root on
+`document.documentElement` (`#factit-bar-host`, `data-factit-state` =
+idle | loading | result | error | no-article, `data-factit-panel` =
+open | closed, `data-factit-details` = shown | hidden). Page CSS cannot restyle them and page scripts cannot
+read them. All text is set via `textContent`; model output is never
 rendered as HTML.
 
 ## Tests
@@ -151,7 +161,7 @@ npm run vendor
 
 SECURITY.md requires a documented reason for every permission.
 
-Current state (V0.6):
+Current state (V0.7):
 
 | Manifest key         | Value                          | Reason |
 |----------------------|--------------------------------|--------|
@@ -178,6 +188,7 @@ extension/
   analysis/validator.js          parse + validate model output
   analysis/engine.js             analyzeArticle(article, provider)
   ui/top-bar.js                  Fact It bar (closed shadow root)
+  ui/panel.js                    expanded analysis panel (same root)
   providers/provider.js          registry + createProvider (common interface)
   providers/common.js            ProviderError, redaction, HTTP round trip
   providers/openai.js            adapters (also anthropic.js,
