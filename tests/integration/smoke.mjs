@@ -4,7 +4,7 @@
 //   1. Chrome accepts the manifest (the service worker target appears)
 //   2. the content script executes on a normal http page
 //   3. the content script can reach the service worker
-//   4. article extraction runs in the page (vendored Readability loads)
+//   4. article extraction + normalization runs in the page
 //   5. the settings page opens
 //
 // Requires a Chromium binary that honours --load-extension. Branded Google
@@ -106,9 +106,28 @@ try {
   check(logs.some((l) => l.includes("[Fact It] content script loaded")), "content script executed on http page");
   check(logs.some((l) => l.includes("[Fact It] service worker responded")), "content script reached service worker");
 
-  // 4. Extraction ran on the fixture article.
-  const extraction = logs.find((l) => l.startsWith("[Fact It] extraction:"));
-  check(Boolean(extraction) && extraction.includes("title=City council approves new transit plan"), "article extracted in page", extraction);
+  // 4. Extraction + normalization in the content script's isolated world.
+  await waitFor(() => consoleText().some((l) => l.startsWith("[Fact It] article:")), { tries: 25 });
+  const isolated = page.events.find((e) =>
+    e.method === "Runtime.executionContextCreated" &&
+    e.params.context.auxData?.type === "isolated" &&
+    e.params.context.origin.startsWith(`chrome-extension://${extensionId}`));
+  let doc = null;
+  if (isolated) {
+    const r = await page.send("Runtime.evaluate", {
+      contextId: isolated.params.context.id,
+      expression: "FactIt.normalizeArticle(FactIt.extractArticle(document, location, { Readability, isProbablyReaderable }))",
+      awaitPromise: true,
+      returnByValue: true,
+    });
+    doc = r.result?.result?.value ?? null;
+  }
+  check(
+    Boolean(doc) && doc.schema_version === "1.0" && /^[0-9a-f]{64}$/.test(doc.content_hash) &&
+      doc.document.title === "City council approves new transit plan" && doc.document.truncated === false,
+    "ArticleDocument built in page",
+    doc ? `hash=${doc.content_hash.slice(0, 12)}… chars=${doc.document.content.length} links=${doc.document.links.length}` : "isolated world not found",
+  );
 
   // 5. Settings page opens.
   await page.send("Page.navigate", { url: `chrome-extension://${extensionId}/options/options.html` });

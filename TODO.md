@@ -2,59 +2,58 @@
 
 ## CURRENT
 
-V0.2 - Article Extraction
+V0.3 - Content Normalization
 
 ## Objective
 
-Integrate reader-mode extraction so the extension can obtain the main
-article content locally, without sending raw page HTML anywhere.
+Convert the raw extraction into a deterministic, size-bounded
+ArticleDocument with a content hash.
 
 ## Tasks
 
-- [x] Evaluate and adopt Mozilla Readability (ADR-003)
-- [x] Vendor Readability into extension/vendor/ (`npm run vendor`)
-- [x] Implement content/extractor.js
-      (url, domain, title, author, publication date, language,
-      main text, article links, image metadata)
-- [x] Wire extraction into the content script
-      (runs on readerable pages; answers `FACTIT_EXTRACT`)
-- [x] Unit tests with jsdom fixtures (article + non-article)
-- [x] Browser smoke test covers extraction
-- [x] Document verification and vendoring (docs/DEVELOPMENT.md)
+- [x] utils/hash.js - SHA-256 via WebCrypto
+- [x] content/normalize.js - extraction -> ArticleDocument
+      (whitespace, invisible characters, URLs, metadata, links,
+      images, length cap, content hash)
+- [x] Content script builds the ArticleDocument; `FACTIT_EXTRACT`
+      returns it
+- [x] Finalize docs/ARTICLE_SCHEMA.md (adds `content_hash`,
+      `truncated`)
+- [x] Unit tests for every normalization rule + fixture end to end
+- [x] Smoke test evaluates the ArticleDocument inside Chromium
 
 ## Acceptance Criteria
 
-- [x] Extraction works on an article page without contacting an LLM.
-- [x] Output is plain text plus validated http(s) URLs; no raw HTML.
-- [x] Navigation, banners, recommendations and footer are excluded.
-- [x] Non-article pages yield "no article" rather than garbage.
-- [x] The page DOM is not modified.
+- [x] Output conforms to docs/ARTICLE_SCHEMA.md.
+- [x] Same content yields the same hash regardless of URL, tracking
+      parameters or metadata (verified identical in Chromium and Node).
+- [x] Content is plain text, bounded (40,000 chars), free of control,
+      zero-width and bidi-control characters.
+- [x] URLs are http(s) only, without fragments, credentials or
+      tracking parameters.
 - [x] No new permissions.
 
 ## Status
 
-V0.2 complete on 2026-09-17.
+V0.3 complete on 2026-09-17.
 
 Notes:
 
-- Output shape mirrors the ArticleDocument `document` fields but is
-  still raw: no whitespace/URL normalization, no length cap, no
-  `schema_version`, no content hash. Those belong to V0.3.
-- Extracted URLs keep their query strings; V0.3 URL normalization
-  should decide what to strip.
-- Links are capped at 50 and images at 20, taken only from inside the
-  extracted article.
+- `published_at` is ISO 8601 or null; unparseable dates become null.
+- `language` is canonical BCP-47 or null.
+- Truncation cuts on a line boundary and sets `truncated: true`; the
+  hash covers only what is kept.
+- `author` is the byline as published and may be a publisher name.
 
 ## NEXT
 
-V0.3 - Content Normalization (see PLAN.md). Not started.
+V0.4 - Provider Layer (see PLAN.md). Not started.
 
 ## DO NOT IMPLEMENT YET
 
-- OpenAI
-- Anthropic
-- AI analysis
+- AI analysis prompt
 - Fact It bar
+- Expanded panel
 - Local cache
 - Evidence Engine
 - Community

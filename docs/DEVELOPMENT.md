@@ -50,17 +50,18 @@ Content script:
 Content scripts do not run on `chrome://` pages, the Chrome Web Store,
 or `file://` URLs.
 
-Article extraction:
+Article extraction and normalization:
 
 1. Open a news article or blog post.
-2. The page console shows `[Fact It] extraction: {title, author,
-   published_at, language, content_chars, links, images}`.
-   Only this summary is logged, never the article text.
+2. The page console shows `[Fact It] article: {title, author,
+   published_at, language, content_chars, truncated, links, images,
+   content_hash}`. Only this summary is logged, never the article text.
 3. On pages that do not look like an article (search results, home
    pages, dashboards) it shows `no article detected`. That is a valid
    result, not an error.
 
-To inspect a full extraction, open the service worker console and run:
+To inspect the full ArticleDocument (docs/ARTICLE_SCHEMA.md), open the
+service worker console and run:
 
 ```js
 chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) =>
@@ -110,7 +111,7 @@ npm run vendor
 
 SECURITY.md requires a documented reason for every permission.
 
-Current state (V0.2):
+Current state (V0.3):
 
 | Manifest key         | Value                          | Reason |
 |----------------------|--------------------------------|--------|
@@ -129,6 +130,8 @@ extension/
   background/service-worker.js   privileged context; future provider calls
   content/content-script.js      runs on pages; never receives API keys
   content/extractor.js           Readability-based article extraction
+  content/normalize.js           extraction -> ArticleDocument (+ hash)
+  utils/hash.js                  SHA-256 via WebCrypto
   vendor/                        committed copy of Mozilla Readability
   options/                       settings page (options_ui)
 scripts/vendor-readability.mjs   refreshes extension/vendor/

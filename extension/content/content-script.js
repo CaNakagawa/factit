@@ -1,17 +1,21 @@
-// Fact It - content script (V0.2).
+// Fact It - content script (V0.3).
 //
 // Runs in an isolated world on http/https pages. It must never receive
-// API keys. Loaded after vendor/Readability*.js and content/extractor.js
-// (see manifest.json), which provide the globals used here.
+// API keys. Loaded after vendor/Readability*.js, utils/hash.js,
+// content/extractor.js and content/normalize.js (see manifest.json),
+// which provide the globals used here.
 //
-// V0.2: extracts the main article locally. Nothing leaves the page yet.
+// V0.3: extracts the main article locally and normalizes it into an
+// ArticleDocument. Nothing leaves the page yet.
 
 (() => {
   const deps = { Readability, isProbablyReaderable };
 
-  function extract() {
+  // Extraction + normalization. Returns an ArticleDocument or null.
+  async function buildArticleDocument() {
     try {
-      return FactIt.extractArticle(document, location, deps);
+      const extraction = FactIt.extractArticle(document, location, deps);
+      return await FactIt.normalizeArticle(extraction);
     } catch (error) {
       console.warn("[Fact It] extraction failed:", error);
       return null;
@@ -19,16 +23,19 @@
   }
 
   // Summary only - article text is never logged.
-  function summarize(result) {
-    if (!result) return "no article detected";
+  function summarize(articleDocument) {
+    if (!articleDocument) return "no article detected";
+    const d = articleDocument.document;
     return {
-      title: result.title,
-      author: result.author,
-      published_at: result.published_at,
-      language: result.language,
-      content_chars: result.content.length,
-      links: result.links.length,
-      images: result.images.length,
+      title: d.title,
+      author: d.author,
+      published_at: d.published_at,
+      language: d.language,
+      content_chars: d.content.length,
+      truncated: d.truncated,
+      links: d.links.length,
+      images: d.images.length,
+      content_hash: articleDocument.content_hash,
     };
   }
 
@@ -36,13 +43,14 @@
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!sender || sender.id !== chrome.runtime.id) return false;
     if (message && message.type === "FACTIT_EXTRACT") {
-      sendResponse({ type: "FACTIT_ARTICLE", article: extract() });
+      buildArticleDocument().then((article) => sendResponse({ type: "FACTIT_ARTICLE", article }));
+      return true; // async response
     }
     return false;
   });
 
   console.log("[Fact It] content script loaded:", location.href);
-  console.log("[Fact It] extraction:", summarize(extract()));
+  buildArticleDocument().then((article) => console.log("[Fact It] article:", summarize(article)));
 
   chrome.runtime.sendMessage({ type: "FACTIT_PING" }, (response) => {
     if (chrome.runtime.lastError) {

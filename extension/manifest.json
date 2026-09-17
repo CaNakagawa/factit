@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Fact It",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Transparent, preliminary AI-assisted analysis of online content. Know what you're reading.",
   "background": {
     "service_worker": "background/service-worker.js",
@@ -16,7 +16,9 @@
       "js": [
         "vendor/Readability-readerable.js",
         "vendor/Readability.js",
+        "utils/hash.js",
         "content/extractor.js",
+        "content/normalize.js",
         "content/content-script.js"
       ],
       "run_at": "document_idle"
