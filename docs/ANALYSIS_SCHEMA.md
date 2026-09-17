@@ -1,6 +1,6 @@
 # Fact It - AnalysisResult
 
-Schema Version: 1.0
+Schema Version: 1.1
 
 Produced by `analyzeArticle` (extension/analysis/engine.js) from the
 model's JSON after validation (extension/analysis/validator.js).
@@ -15,7 +15,10 @@ Enumerations live in extension/analysis/schema.js.
     "verification_level": "AI_PRELIMINARY"
   },
   "claims": [
-    { "text": "", "type": "FACTUAL", "classification": "UNVERIFIED", "confidence": 0.0, "explanation": "" }
+    {
+      "text": "", "type": "FACTUAL", "classification": "UNVERIFIED", "confidence": 0.0, "explanation": "",
+      "basis": "UNKNOWN", "missing_information": "", "implied": ""
+    }
   ],
   "flags": [
     { "type": "MISSING_CONTEXT", "explanation": "" }
@@ -93,6 +96,17 @@ INSUFFICIENT_EVIDENCE
 
 `UNVERIFIED` and `INSUFFICIENT_EVIDENCE` are normal outcomes, not
 failures.
+
+Schema 1.1 adds, per claim:
+
+| Field | Values | Meaning |
+|---|---|---|
+| `basis` | `EVIDENCE`, `ATTRIBUTION`, `OPINION`, `ASSUMPTION`, `UNKNOWN` | What the claim rests on within the article: evidence shown; attribution to a source without evidence; the author's or a subject's belief presented as a claim; an assumption or inference; not stated. |
+| `missing_information` | string, max 300 | What the article would need to provide to establish the claim; empty when nothing is missing. |
+| `implied` | string, max 300 | The conclusion the passage leads the reader to that its information does not establish; empty when none. |
+
+Results stored with schema 1.0 are upgraded on read with
+`basis: "UNKNOWN"` and empty strings; the UI offers Re-analyze.
 
 ## Flags
 

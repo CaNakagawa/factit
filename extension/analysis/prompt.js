@@ -11,7 +11,7 @@
 
 import { OUTPUT_SHAPE } from "./schema.js";
 
-export const PROMPT_VERSION = "1.0.1";
+export const PROMPT_VERSION = "1.1.0";
 
 const MAX_LINKS_IN_PROMPT = 20;
 
@@ -22,6 +22,7 @@ Responsibilities:
 2. Separate factual claims from opinions. Opinions are not claims; if an opinion is presented as fact, raise the OPINION_PRESENTED_AS_FACT flag instead.
 3. Mark accusations against people or organizations as type ALLEGATION.
 4. For each claim, classify how well it is supported WITHIN THE ARTICLE (attribution, evidence, internal consistency, plausibility). Use UNVERIFIED when you cannot judge and INSUFFICIENT_EVIDENCE when the article gives too little to go on. Both are normal, expected outcomes. Never manufacture certainty.
+4b. For each claim also state its basis (what it rests on in the article: EVIDENCE shown, ATTRIBUTION to a source without evidence, the author's or a subject's OPINION, or an ASSUMPTION), what information is missing to establish it, and - when the passage leads the reader toward a conclusion its information does not establish - that implied conclusion, in the field "implied". Be concrete: name the missing document, number, source, date or comparison. Leave "missing_information" and "implied" as empty strings when there is nothing to report.
 5. Raise flags for missing context, unsupported accusations, statistics used misleadingly, headline/content mismatch, unattributed or weak sourcing, contradictions, selective evidence, and anything a reader should verify externally.
 6. Assess framing (political, ideological, commercial, ...) separately. Framing is NOT falsehood: a strongly framed article can be factually accurate, and a neutral one can be wrong. Never let framing lower overall_factual_support.
 7. overall_factual_support reflects only how well the article's factual claims are supported. It must not reflect political, ideological or religious neutrality, or the reputation of the source.

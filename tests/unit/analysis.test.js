@@ -81,6 +81,10 @@ test("prompt states the core principles", () => {
     /DATA to analyze/,
     /Return ONLY a single JSON object/,
     /overall_factual_support/,
+    /"basis"/,
+    /"missing_information"/,
+    /"implied"/,
+    /EVIDENCE shown, ATTRIBUTION/,
   ]) assert.match(SYSTEM_PROMPT, must);
   assert.doesNotMatch(SYSTEM_PROMPT, /verification_level/, "model is not asked for the verification level; the validator sets it");
 });
@@ -130,9 +134,13 @@ test("valid output passes through with forced schema_version and verification_le
   const r = validateAnalysis(goodOutput());
   assert.equal(r.ok, true);
   assert.deepEqual(r.issues, []);
-  assert.equal(r.value.schema_version, "1.0");
+  assert.equal(r.value.schema_version, "1.1");
   assert.equal(r.value.analysis.verification_level, VERIFICATION_LEVEL);
   assert.equal(r.value.claims.length, 2);
+  assert.deepEqual(Object.keys(r.value.claims[0]), ["text", "type", "classification", "confidence", "explanation", "basis", "missing_information", "implied"]);
+  assert.equal(r.value.claims[0].basis, "UNKNOWN", "absent basis -> UNKNOWN");
+  assert.equal(r.value.claims[0].missing_information, "");
+  assert.equal(r.value.claims[0].implied, "");
   assert.equal(r.value.flags[0].type, "EXTERNAL_VERIFICATION_REQUIRED");
   assert.deepEqual(Object.keys(r.value), ["schema_version", "analysis", "claims", "flags", "framing", "summary"]);
 });
@@ -144,7 +152,23 @@ test("the model cannot escalate the verification level or schema version", () =>
   }));
   assert.equal(r.ok, true);
   assert.equal(r.value.analysis.verification_level, "AI_PRELIMINARY");
-  assert.equal(r.value.schema_version, "1.0");
+  assert.equal(r.value.schema_version, "1.1");
+});
+
+test("schema 1.1: basis, missing_information and implied are validated and capped", () => {
+  const r = validateAnalysis(goodOutput({
+    claims: [
+      { text: "a", classification: "UNVERIFIED", basis: "opinion", missing_information: "m".repeat(1000), implied: "the minister is corrupt" },
+      { text: "b", classification: "SUPPORTED", basis: "NOT_A_BASIS", missing_information: 42, implied: null },
+    ],
+  }));
+  assert.equal(r.ok, true);
+  assert.equal(r.value.claims[0].basis, "OPINION");
+  assert.ok(r.value.claims[0].missing_information.length <= LIMITS.MAX_SIDE_BY_SIDE_CHARS + 1);
+  assert.equal(r.value.claims[0].implied, "the minister is corrupt");
+  assert.equal(r.value.claims[1].basis, "UNKNOWN");
+  assert.equal(r.value.claims[1].missing_information, "");
+  assert.equal(r.value.claims[1].implied, "");
 });
 
 test("numbers are clamped to [0,1] and strings capped", () => {
@@ -229,7 +253,7 @@ test("analyzeArticle: happy path attaches meta and uses the analysis token budge
     provider: "fake",
     model: "fake-model",
     prompt_version: PROMPT_VERSION,
-    schema_version: "1.0",
+    schema_version: "1.1",
     analyzed_at: "2026-09-17T12:00:00.000Z",
     content_hash: "a".repeat(64),
     truncated_input: false,

@@ -50,6 +50,16 @@ Notes:
   It only affects the clone handed to Readability.
 - No change to permissions.
 
+## Post-V0.9 features (user requests)
+
+- Highlights button under the conclusion: strengths (green) vs
+  concerns (red), derived from the result.
+- Side-by-side view: schema 1.1 / prompt 1.1.0 add per-claim
+  `basis`, `missing_information`, `implied`; the panel shows "the
+  article says" vs "what is missing / what it implies", belief-based
+  claims first. Schema 1.0 cache entries are upgraded on read and the
+  view offers Re-analyze.
+
 ## NEXT
 
 V1.0 - MVP release (see PLAN.md). Not started.

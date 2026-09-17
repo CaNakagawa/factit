@@ -11,7 +11,7 @@
 // Article text is never stored; only the hash and the analysis.
 
 import { validateAnalysis } from "../analysis/validator.js";
-import { ANALYSIS_SCHEMA_VERSION } from "../analysis/schema.js";
+import { ANALYSIS_SCHEMA_VERSION, ACCEPTED_SCHEMA_VERSIONS } from "../analysis/schema.js";
 
 export const MAX_ENTRIES = 200;
 const INDEX_KEY = "analysis_index";
@@ -28,7 +28,7 @@ function entryKey(hash) {
 function sanitizeStored(entry) {
   if (!entry || typeof entry !== "object" || !entry.result || typeof entry.result !== "object") return null;
   const { result } = entry;
-  if (result.schema_version !== ANALYSIS_SCHEMA_VERSION) return null;
+  if (!ACCEPTED_SCHEMA_VERSIONS.includes(result.schema_version)) return null;
   const validated = validateAnalysis(result);
   if (!validated.ok) return null;
   const meta = result.meta && typeof result.meta === "object" ? result.meta : {};

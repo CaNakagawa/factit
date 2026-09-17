@@ -111,7 +111,11 @@ Fact It bar and analysis:
    **Show highlights** button (green strengths: well-supported claims,
    no flags, no framing; red concerns: flags, disputed / misleading /
    false / insufficient claims, allegations, detected framing - all
-   derived from the result, no extra tokens), a
+   derived from the result, no extra tokens), a **Show side by side**
+   button (left: what the article says with what it rests on -
+   evidence, attribution, opinion, assumption; right: what is missing
+   and what the passage leads the reader to conclude; only claims with
+   something to show, belief-based ones first), a
    **Show detailed analysis** button, and one line of provenance
    (model, provider, prompt version, time, truncation / dropped-item
    notes). The button reveals claims (classification, allegation

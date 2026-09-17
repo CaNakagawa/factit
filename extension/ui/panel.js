@@ -64,6 +64,21 @@
     .panel .highlights li.pos { border-left-color: #22c55e; }
     .panel .highlights li.neg { border-left-color: #ef4444; }
     .panel .highlights .neutral { color: #9aa5b1; font-size: 12px; margin-top: 6px; }
+    .panel .sbs-toggle {
+      all: initial; cursor: pointer; font: 12px system-ui, sans-serif; color: #f5f7fa;
+      border: 1px solid #52606d; border-radius: 3px; padding: 4px 10px; margin: 6px 0 2px 8px;
+    }
+    .panel .sbs-toggle:hover { background: #3e4c59; }
+    .panel .sbs[hidden] { display: none; }
+    .panel .sbs .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 8px 0; border-top: 1px solid #323f4b; }
+    .panel .sbs .row:first-of-type { border-top: none; }
+    .panel .sbs .col-h { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #9aa5b1; margin: 10px 0 2px; }
+    .panel .sbs .says { color: #f5f7fa; }
+    .panel .sbs .gap { color: #cbd2d9; }
+    .panel .sbs .gap .lead-in { color: #9aa5b1; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; display: block; margin-top: 4px; }
+    .panel .sbs .badge.opinion, .panel .sbs .badge.assumption { border-color: #ef4444; color: #fca5a5; }
+    .panel .sbs .badge.attribution { border-color: #f59e0b; color: #fcd34d; }
+    .panel .sbs .badge.evidence { border-color: #22c55e; color: #86efac; }
     .panel .secondary {
       all: initial; cursor: pointer; font: 12px system-ui, sans-serif; color: #cbd2d9;
       border: 1px solid #52606d; border-radius: 3px; padding: 4px 8px;
@@ -213,6 +228,84 @@
     return { positives, negatives, neutral };
   }
 
+  const BASIS_LABEL = {
+    EVIDENCE: "Rests on evidence in the article",
+    ATTRIBUTION: "Attributed to a source, no evidence shown",
+    OPINION: "Belief or opinion presented as a claim",
+    ASSUMPTION: "Assumed or implied, not supported",
+    UNKNOWN: "Basis not stated",
+  };
+  const BASIS_ORDER = { OPINION: 0, ASSUMPTION: 1, ATTRIBUTION: 2, UNKNOWN: 3, EVIDENCE: 4 };
+
+  /**
+   * Rows for the side-by-side view: claims that lean on belief/assumption,
+   * lack information, or lead the reader somewhere their information does
+   * not go. Pure data transformation, exported for tests.
+   */
+  function deriveSideBySide(result) {
+    const claims = Array.isArray(result.claims) ? result.claims : [];
+    const hasData = claims.some((c) => (c.basis && c.basis !== "UNKNOWN") || c.missing_information || c.implied);
+    const rows = claims
+      .filter((c) => c.basis === "OPINION" || c.basis === "ASSUMPTION" || c.missing_information || c.implied)
+      .map((c) => ({
+        says: c.text,
+        basis: c.basis || "UNKNOWN",
+        missing: c.missing_information || "",
+        implied: c.implied || "",
+        allegation: c.type === "ALLEGATION",
+      }))
+      .sort((a, b) => (BASIS_ORDER[a.basis] ?? 3) - (BASIS_ORDER[b.basis] ?? 3));
+    return { rows, hasData, total: claims.length };
+  }
+
+  function renderSideBySide(result, onReanalyze) {
+    const { rows, hasData, total } = deriveSideBySide(result);
+    const wrap = el("div", "sbs");
+    wrap.hidden = true;
+
+    if (!hasData && total > 0) {
+      wrap.append(el("p", "muted", "This analysis predates the side-by-side view. Re-analyze to get what each claim rests on, what is missing and what it implies."));
+      if (onReanalyze) {
+        const again = el("button", "secondary", "Re-analyze (uses tokens)");
+        again.addEventListener("click", () => onReanalyze());
+        wrap.append(again);
+      }
+    } else if (!rows.length) {
+      wrap.append(el("p", "muted", total ? "Every claim rests on evidence or attribution, with nothing missing and nothing implied beyond it." : "No claims to compare."));
+    } else {
+      const head = el("div", "col-h");
+      head.append(el("span", "", "The article says"), el("span", "", "What is missing · what it implies"));
+      wrap.append(head);
+      for (const r of rows) {
+        const row = el("div", "row");
+        const says = el("div", "says");
+        const badges = el("div");
+        badges.append(el("span", `badge ${r.basis.toLowerCase()}`, BASIS_LABEL[r.basis] || BASIS_LABEL.UNKNOWN));
+        if (r.allegation) badges.append(el("span", "badge type", "Allegation"));
+        says.append(badges, el("p", "", r.says));
+        const gap = el("div", "gap");
+        if (r.missing) {
+          gap.append(el("span", "lead-in", "Missing"), el("p", "", r.missing));
+        }
+        if (r.implied) {
+          gap.append(el("span", "lead-in", "Leads the reader to"), el("p", "", r.implied));
+        }
+        if (!r.missing && !r.implied) gap.append(el("p", "muted", "Rests on belief rather than information."));
+        row.append(says, gap);
+        wrap.append(row);
+      }
+    }
+
+    const toggle = el("button", "sbs-toggle");
+    const render = () => {
+      toggle.textContent = `${wrap.hidden ? "Show" : "Hide"} side by side${hasData ? ` · ${rows.length}` : ""}`;
+      toggle.setAttribute("aria-expanded", String(!wrap.hidden));
+    };
+    toggle.addEventListener("click", () => { wrap.hidden = !wrap.hidden; render(); });
+    render();
+    return { toggle, wrap };
+  }
+
   function renderHighlights(result) {
     const { positives, negatives, neutral } = deriveHighlights(result);
     const wrap = el("div", "highlights");
@@ -266,7 +359,10 @@
     // positive/negative highlights on demand.
     frag.append(section("Conclusion"), el("p", "lead", result.summary || "No summary provided."));
     const highlights = renderHighlights(result);
-    frag.append(highlights.toggle, highlights.wrap);
+    const sideBySide = renderSideBySide(result, options.onReanalyze);
+    const row = el("div");
+    row.append(highlights.toggle, sideBySide.toggle);
+    frag.append(row, highlights.wrap, sideBySide.wrap);
 
     // Everything else is opt-in.
     const claims = Array.isArray(result.claims) ? result.claims : [];
@@ -362,5 +458,5 @@
     return api;
   }
 
-  root.FactIt = Object.assign(root.FactIt || {}, { createPanel, renderPanelContent, deriveHighlights, humanize });
+  root.FactIt = Object.assign(root.FactIt || {}, { createPanel, renderPanelContent, deriveHighlights, deriveSideBySide, humanize });
 })(globalThis);

@@ -11,7 +11,7 @@ globalThis.document = dom.window.document;
 globalThis.HTMLElement = dom.window.HTMLElement;
 loadClassicScript(new URL("../../extension/ui/top-bar.js", import.meta.url));
 loadClassicScript(new URL("../../extension/ui/panel.js", import.meta.url));
-const { createTopBar, createPanel, renderPanelContent, deriveHighlights, humanize } = globalThis.FactIt;
+const { createTopBar, createPanel, renderPanelContent, deriveHighlights, deriveSideBySide, humanize } = globalThis.FactIt;
 
 function result(overrides = {}) {
   return {
@@ -232,8 +232,8 @@ test("highlights: button under the conclusion toggles the lists; text only", () 
   assert.ok(toggle && block);
   assert.equal(block.hidden, true);
   assert.match(toggle.textContent, /Show highlights · 0 ✓ 4 ✗/);
-  // Sits right after the conclusion lead.
-  assert.equal(p.querySelector(".lead").nextElementSibling, toggle);
+  // Sits right after the conclusion lead (in the button row).
+  assert.equal(p.querySelector(".lead").nextElementSibling.firstElementChild, toggle);
 
   toggle.click();
   assert.equal(block.hidden, false);
@@ -244,4 +244,51 @@ test("highlights: button under the conclusion toggles the lists; text only", () 
   assert.equal(block.querySelectorAll("li.neg").length, 4);
   toggle.click();
   assert.equal(block.hidden, true);
+});
+
+test("side by side: rows for belief-based, information-missing or implying claims, opinions first", () => {
+  const r = deriveSideBySide(result({
+    claims: [
+      { text: "Evidence-backed", classification: "SUPPORTED", basis: "EVIDENCE", missing_information: "", implied: "" },
+      { text: "Attributed but thin", classification: "PARTIALLY_SUPPORTED", basis: "ATTRIBUTION", missing_information: "The original report.", implied: "" },
+      { text: "Author believes", classification: "UNVERIFIED", basis: "OPINION", missing_information: "", implied: "" },
+      { text: "Leads somewhere", type: "ALLEGATION", classification: "INSUFFICIENT_EVIDENCE", basis: "ASSUMPTION", missing_information: "Any document.", implied: "The minister acted improperly." },
+    ],
+  }));
+  assert.equal(r.hasData, true);
+  assert.deepEqual(r.rows.map((x) => x.says), ["Author believes", "Leads somewhere", "Attributed but thin"]);
+  assert.equal(r.rows[1].allegation, true);
+  assert.equal(r.rows[1].implied, "The minister acted improperly.");
+
+  const old = deriveSideBySide(result({ claims: [{ text: "x", classification: "UNVERIFIED", basis: "UNKNOWN", missing_information: "", implied: "" }] }));
+  assert.equal(old.hasData, false, "pre-1.1 results have no side-by-side data");
+});
+
+test("side by side: toggle next to highlights; two columns; old analyses offer Re-analyze", () => {
+  const bar = createTopBar();
+  const panel = createPanel(bar.root);
+  panel.setResult(result({
+    claims: [{ text: "<b>says</b>", classification: "UNVERIFIED", basis: "OPINION", missing_information: "<i>missing</i>", implied: "<img src=x>" }],
+  }));
+  const p = bar.root.querySelector(".panel");
+  const toggle = p.querySelector(".sbs-toggle");
+  const block = p.querySelector(".sbs");
+  assert.ok(toggle && block);
+  assert.equal(toggle.previousElementSibling.className, "hl-toggle", "sits next to the highlights button");
+  assert.equal(block.hidden, true);
+  assert.match(toggle.textContent, /Show side by side · 1/);
+  toggle.click();
+  assert.equal(block.hidden, false);
+  const row = block.querySelector(".row");
+  assert.match(row.querySelector(".says").textContent, /Belief or opinion presented as a claim/);
+  assert.match(row.querySelector(".says").textContent, /<b>says<\/b>/);
+  assert.match(row.querySelector(".gap").textContent, /Missing<i>missing<\/i>Leads the reader to<img src=x>/);
+  assert.equal(block.querySelectorAll("b, i, img").length, 0);
+
+  let reran = 0;
+  panel.setResult(result({ claims: [{ text: "old", classification: "UNVERIFIED", basis: "UNKNOWN", missing_information: "", implied: "" }] }), { onReanalyze: () => reran++ });
+  const old = bar.root.querySelector(".panel .sbs");
+  assert.match(old.textContent, /predates the side-by-side view/);
+  old.querySelector("button").click();
+  assert.equal(reran, 1);
 });

@@ -10,6 +10,7 @@ import {
   ANALYSIS_SCHEMA_VERSION,
   VERIFICATION_LEVEL,
   CLAIM_TYPES,
+  CLAIM_BASES,
   CLAIM_CLASSIFICATIONS,
   FLAG_TYPES,
   FRAMING_TYPES,
@@ -127,6 +128,10 @@ export function validateAnalysis(raw) {
         classification,
         confidence: clamp01(c.confidence),
         explanation: str(c.explanation, LIMITS.MAX_EXPLANATION_CHARS),
+        // Schema 1.1; absent in older results -> UNKNOWN / empty.
+        basis: oneOf(c.basis, CLAIM_BASES) || "UNKNOWN",
+        missing_information: str(c.missing_information, LIMITS.MAX_SIDE_BY_SIDE_CHARS),
+        implied: str(c.implied, LIMITS.MAX_SIDE_BY_SIDE_CHARS),
       });
     });
     if (raw.claims.length > LIMITS.MAX_CLAIMS) issues.push(`claims truncated to ${LIMITS.MAX_CLAIMS}`);

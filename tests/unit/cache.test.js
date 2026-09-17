@@ -23,7 +23,7 @@ const hash = (n) => n.toString(16).padStart(64, "0");
 
 function result(overrides = {}) {
   return {
-    schema_version: "1.0",
+    schema_version: "1.1",
     analysis: { overall_factual_support: 0.6, confidence: 0.5, verification_level: "AI_PRELIMINARY" },
     claims: [{ text: "c", type: "FACTUAL", classification: "UNVERIFIED", confidence: 0.5, explanation: "" }],
     flags: [],
@@ -60,6 +60,16 @@ test("invalid hashes are rejected / ignored", async () => {
   assert.equal(await cache.get("nope"), null);
   assert.equal(await cache.get(undefined), null);
   await assert.rejects(cache.put("nope", result()), /Invalid content hash/);
+});
+
+test("schema 1.0 entries are still served, upgraded with default 1.1 fields", async () => {
+  const area = memoryArea();
+  const cache = createAnalysisCache(area);
+  area.data["analysis:" + hash(9)] = { result: result({ schema_version: "1.0" }), cached_at: "2026-01-01T00:00:00.000Z" };
+  const hit = await cache.get(hash(9));
+  assert.ok(hit);
+  assert.equal(hit.result.schema_version, "1.1");
+  assert.equal(hit.result.claims[0].basis, "UNKNOWN");
 });
 
 test("corrupt or schema-mismatched entries are misses", async () => {
