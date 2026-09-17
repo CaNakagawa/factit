@@ -123,7 +123,10 @@
         showResult(r, Boolean(reply.cached));
       } else {
         const err = (reply && reply.error) || { kind: "unknown", message: "No reply from background." };
-        console.warn(`[Fact It] analysis failed (${err.kind}): ${err.message}`, err.details || "");
+        // Details (e.g. the raw model text for invalid_output) go into the
+        // message itself so chrome://extensions "Errors" shows them too.
+        const details = Array.isArray(err.details) && err.details.length ? ` | ${err.details.join(" | ")}` : "";
+        console.warn(`[Fact It] analysis failed (${err.kind}): ${err.message}${details}`);
         ui.setError(err);
       }
       return reply;
