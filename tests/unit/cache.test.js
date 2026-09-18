@@ -23,10 +23,11 @@ const hash = (n) => n.toString(16).padStart(64, "0");
 
 function result(overrides = {}) {
   return {
-    schema_version: "2.0",
-    assessment: { article_support: 0.6, confidence: 0.5, rationale: "", verification_level: "AI_PRELIMINARY", external_verification: "NOT_PERFORMED" },
-    claims: [{ id: "c1", text: "c", type: "FACTUAL", support: "UNVERIFIED", confidence: 0.5, evidence_type: "UNKNOWN", evidence: "", gap: "", inference: "", issues: [], external_verification_required: false }],
-    issues: [],
+    schema_version: "2.1",
+    assessment: { status: "NO_SIGNIFICANT_CONCERNS", confidence: 0.5, rationale: "", verification_level: "AI_PRELIMINARY", external_verification: "NOT_PERFORMED" },
+    source_transparency: {},
+    claims: [{ id: "c1", text: "c", type: "FACTUAL", support: "UNCLEAR", attribution: "UNCLEAR", evidence_type: "UNKNOWN", evidence: "", concerns: [], gap: "", inference: "" }],
+    concerns: [],
     framing: { detected: false, type: null, strength: null, confidence: 0, observations: [] },
     summary: "s",
     meta: { provider: "fake", model: "m", prompt_version: "1.0.1", schema_version: "1.0", analyzed_at: "2026-09-17T12:00:00.000Z", content_hash: hash(1), truncated_input: false, finish: "stop", usage: null, validation_issues: [] },
@@ -77,10 +78,11 @@ test("schema 1.x entries are still served, migrated to 2.0 and marked", async ()
   area.data["analysis:" + hash(9)] = { result: legacy, cached_at: "2026-09-17T00:00:00.000Z" };
   const hit = await cache.get(hash(9));
   assert.ok(hit);
-  assert.equal(hit.result.schema_version, "2.0");
+  assert.equal(hit.result.schema_version, "2.1");
   assert.equal(hit.result.claims[0].support, "ARTICLE_SUPPORTED");
   assert.equal(hit.result.claims[0].evidence, "quoted");
-  assert.deepEqual(hit.result.issues, [{ type: "MISSING_CONTEXT", note: "ctx", claim_ids: [] }]);
+  assert.deepEqual(hit.result.concerns, [{ type: "MATERIAL_MISSING_CONTEXT", severity: "MODERATE", note: "ctx", claim_ids: [] }]);
+  assert.equal(hit.result.assessment.status, "REVIEW_RECOMMENDED");
   assert.equal(hit.result.meta.migrated_from, "1.2");
   assert.equal(hit.result.meta.model, "m");
 });
@@ -102,6 +104,7 @@ test("stored results are re-validated: verification level cannot be escalated fr
   const tampered = result();
   tampered.assessment.verification_level = "EVIDENCE_VERIFIED";
   tampered.assessment.external_verification = "PERFORMED";
+  tampered.assessment.status = "SIGNIFICANT_CONCERNS";
   tampered.meta.provider = 42;
   area.data["analysis:" + hash(5)] = { result: tampered, cached_at: "2026-01-01T00:00:00.000Z" };
   const hit = await cache.get(hash(5));

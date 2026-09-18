@@ -1,11 +1,11 @@
-// Fact It - top bar (schema 2.0).
+// Fact It - top bar (schema 2.1, concern status).
 //
 // Thin indicator injected at the top of the page. Classic script running
 // in the content-script world; exposes FactIt.createTopBar.
 //
-// The primary indicator represents ARTICLE SUPPORT only: how well the
-// article backs its own claims. Never political or ideological neutrality,
-// source popularity, community opinion, or truth.
+// The primary indicator is the CONCERN STATUS: the strength of warning
+// signals detected in the content. Never a truth verdict, never political
+// or ideological neutrality, and never "Fact It did not verify this".
 //
 // Security: everything lives in a closed shadow root so page CSS and
 // scripts cannot restyle or read it. All dynamic text - which comes from
@@ -126,36 +126,24 @@
        */
       setResult(result, options = {}) {
         const d = derive();
-        const support = Number(result.assessment && result.assessment.article_support) || 0;
+        const st = d.status(result);
         const n = d.counts(result);
-        const color = n.total === 0 ? "#9aa5b1" : d.supportColor(support);
+        const text = d.bannerText(result);
+        const color = n.total === 0 ? "#9aa5b1" : st.color;
 
-        const meter = el("span", "meter");
-        const fill = el("span");
-        fill.style.width = `${Math.round(support * 100)}%`;
-        fill.style.background = color;
-        meter.append(fill);
-        meter.title = `${d.supportWord(support)} - how well the article backs its own claims; not a truth score`;
         const dot = el("span", "dot");
         dot.style.background = color;
+        dot.title = st.meaning;
 
-        const label = n.total === 0
-          ? "No verifiable claims found"
-          : `Article support: ${Math.round(support * 100)}%`;
-        let detail = n.total === 0
-          ? `${d.confidenceWord(result.assessment.confidence)} confidence`
-          : n.needsReview > 0
-            ? `${n.needsReview} need${n.needsReview === 1 ? "s" : ""} review`
-            : "no claims need review";
-        if (options.cached) detail = `from cache · ${detail}`;
+        const label = n.total === 0 ? "No verifiable claims found" : text.label;
+        let detail = n.total === 0 ? `${d.confidenceWord(result.assessment.confidence)} confidence` : text.detail;
+        if (options.cached) detail = detail ? `from cache · ${detail}` : "from cache";
 
-        const nodes = [
-          dot,
-          meter,
-          el("span", "text label", label),
-          el("span", "text muted detail", detail),
-          el("span", "tag long", PRELIMINARY_LABEL),
-        ];
+        const labelNode = el("span", "text label", label);
+        labelNode.style.color = n.total === 0 ? "" : color;
+        const nodes = [dot, labelNode];
+        if (detail) nodes.push(el("span", "text muted detail", detail));
+        nodes.push(el("span", "tag long", PRELIMINARY_LABEL));
         if (handlers.onDetails) nodes.push(actionButton("Details", handlers.onDetails));
         render("result", ...nodes);
         bar.style.cursor = handlers.onDetails ? "pointer" : "";

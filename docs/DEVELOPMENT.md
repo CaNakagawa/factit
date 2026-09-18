@@ -118,18 +118,21 @@ Fact It bar and analysis:
 5. Errors show in the bar with **Retry**, or **Open settings** when the
    provider is not configured. ✕ hides the bar for this page load.
 6. After a result, click **Details** (or the bar). Level 2, the
-   **Summary**, opens first: article support % with its meaning,
-   analysis confidence, the AI PRELIMINARY notice (one place), three
-   counters, up to four key findings, possible framing with one
-   observation, and the actions **View all claims**, **Detailed
-   analysis**, **Re-analyze (uses tokens)**.
+   **Summary**, opens first: the status with its meaning and rationale,
+   analysis confidence, four counters (claims analyzed, significant
+   concerns, observations, contradictions), the AI PRELIMINARY notice
+   (one place; metadata, not a concern), key findings (concerns only,
+   or the "no significant concerns" line), observable source
+   transparency, possible framing, and the actions **Inspect claims**,
+   **Detailed analysis**, **Re-analyze (uses tokens)**.
 7. **Detailed analysis** (level 3) has tabs: Overview (rationale,
-   summary, highlights "Supported in article" / "Needs review" with
-   categories), Claims (each expandable: support, type, confidence,
-   article evidence, evidence type, what may be missing, possible
-   reader inference, issues, external verification status; plus
-   article-level issues), Evidence (evidence-type profile and the
-   side-by-side rows: article says / evidence presented / what may be
+   summary, highlights "Concerns" / "Ordinary reporting, no concern"),
+   Claims (green unless they carry a concern; each expandable: status
+   within the article, type, attribution, article evidence, evidence
+   type, concerns, what is missing, possible reader inference, external
+   verification as metadata; plus article-level concerns), Evidence
+   (evidence-type profile and side-by-side rows for claims with
+   concerns only: article says / evidence presented / what may be
    missing / possible reader inference), Framing (observed
    characteristics), About (verification level, provider, model,
    prompt and schema versions, time, tokens, estimated cost, cache
@@ -214,7 +217,7 @@ npm run vendor
 
 SECURITY.md requires a documented reason for every permission.
 
-Current state (1.2.0):
+Current state (1.3.0):
 
 | Manifest key         | Value                          | Reason |
 |----------------------|--------------------------------|--------|

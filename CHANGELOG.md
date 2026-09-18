@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.3.0 - 2026-09-18
+
+- Product direction (ADR-008): concern detection replaces verification
+  absence as the warning model. "Needs external verification" is gone;
+  external verification is metadata shown once. Status is derived from
+  concerns only: No significant concerns / Review recommended /
+  Significant concerns. No percentage score.
+- Schema 2.1 / prompt 2.1.0: within-article support levels incl.
+  ALLEGATION_REPORTED, attribution, source transparency, concern codes
+  with severity, strict material-missing-context, topic is not
+  framing, compact records for ordinary claims (about half the output
+  tokens again on an ordinary article)
+- UI: banner shows the status; summary shows status, counters (claims,
+  significant concerns, observations, contradictions), key findings,
+  source transparency, framing; claims are green unless they carry a
+  concern
+- Cached 2.0 / 1.x results migrate on read; verification codes dropped
+
 ## 1.2.0 - 2026-09-18
 
 - Progressive disclosure: thin banner (article support %, N need

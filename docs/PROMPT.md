@@ -2,7 +2,7 @@
 
 Prompt versioning is mandatory.
 
-Current version: 2.0.0 (`PROMPT_VERSION` in extension/analysis/prompt.js).
+Current version: 2.1.0 (`PROMPT_VERSION` in extension/analysis/prompt.js).
 Bump it on any wording change; cached results are keyed on it.
 
 ## Input Separation
@@ -66,6 +66,21 @@ level.
 
 Never confuse the two.
 
+## Analytical posture (2.1.0, ADR-008)
+
+The prompt states, verbatim: the purpose is not to demand independent
+proof for every statement but to identify meaningful signals that the
+content may mislead; lack of external verification by Fact It is not
+evidence against a claim and must not generate a concern; ordinary
+attributed reporting is not suspicious; a concern needs a concrete
+reason; "no significant concerns" is an explicit, valid answer; do not
+manufacture concerns. It then walks the model through ten questions
+(claims, internal consistency, attribution where it matters,
+allegation vs reported allegation, headline vs body, statistics,
+conclusion vs evidence, MATERIAL missing context, observable framing,
+any concrete reason to warn). Ordinary claims are compact records; prose
+is spent only on concerns.
+
 ## Token discipline (2.0.0)
 
 Every fact is requested once, on the claim: support, evidence type,
@@ -80,6 +95,11 @@ the output characters versus schema 1.2.
 
 ## Changelog
 
+- 2.1.0 - concern detection (ADR-008): no verification-absence field
+  or code; within-article support vocabulary incl. ALLEGATION_REPORTED;
+  attribution and source transparency; concern codes with severity;
+  strict MATERIAL_MISSING_CONTEXT; topic is not framing; compact
+  records for ordinary claims.
 - 2.0.0 - claim-centric schema 2.0: support levels that say "within
   article", evidence types, per-claim issue codes, possible reader
   inference (no intent), observable framing characteristics; terse

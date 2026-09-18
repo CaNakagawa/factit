@@ -38,6 +38,16 @@ real browser with a real key on the packaged zip, then tag v1.0.0.
 
 ## After V1.0
 
+### 1.3.0 (2026-09-18) - concern detection (ADR-008)
+
+- External verification is metadata, never a concern; status derived
+  from concerns; no percentage; "no significant concerns" valid.
+- Schema 2.1 / prompt 2.1.0; 2.0 and 1.x cache entries migrate.
+- Regression cases 1-7 in tests/unit/concerns.test.js; 141 unit tests,
+  26 smoke checks.
+- Not yet re-run on the live cybersecurity article (needs a key);
+  expected result: green, 0 concerns, verification NOT_PERFORMED.
+
 ### 1.2.0 (2026-09-18) - progressive disclosure and schema 2.0
 
 - Banner: `Article support: 72% · 5 need review · Details`; framing

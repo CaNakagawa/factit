@@ -1,4 +1,4 @@
-// Fact It - AnalysisResult validation (schema 2.0).
+// Fact It - AnalysisResult validation (schema 2.1).
 //
 // LLM output is UNTRUSTED. This module turns whatever text the model
 // returned into either a schema-conformant AnalysisResult or a clear
@@ -6,8 +6,8 @@
 // external_verification or schema_version, clamps every number, caps every
 // string and drops items it cannot validate (recording why).
 //
-// It also migrates results written under schema 1.x (still in the local
-// cache) into the 2.0 shape, so one renderer serves everything.
+// It also migrates results written under schema 1.x and 2.0 (still in the
+// local cache) into the 2.1 shape, so one renderer serves everything.
 
 import {
   ANALYSIS_SCHEMA_VERSION,
@@ -15,8 +15,10 @@ import {
   EXTERNAL_VERIFICATION,
   CLAIM_TYPES,
   SUPPORT_LEVELS,
+  ATTRIBUTIONS,
   EVIDENCE_TYPES,
-  ISSUE_TYPES,
+  CONCERN_TYPES,
+  CONCERN_SEVERITY,
   FRAMING_TYPES,
   FRAMING_STRENGTHS,
   LIMITS,
@@ -105,16 +107,17 @@ function codes(value, allowed, max) {
 
 // ------------------------------------------------------------ migration
 
+// 1.x classification -> 2.1 support
 const LEGACY_SUPPORT = {
   SUPPORTED: "ARTICLE_SUPPORTED",
   MOSTLY_SUPPORTED: "ARTICLE_SUPPORTED",
   PARTIALLY_SUPPORTED: "PARTIALLY_ARTICLE_SUPPORTED",
-  UNVERIFIED: "UNVERIFIED",
-  DISPUTED: "CONTRADICTED_IN_ARTICLE",
-  MISLEADING: "MISLEADING_PRESENTATION",
-  MOSTLY_FALSE: "CONTRADICTED_IN_ARTICLE",
-  FALSE: "CONTRADICTED_IN_ARTICLE",
-  INSUFFICIENT_EVIDENCE: "INSUFFICIENT_EVIDENCE",
+  UNVERIFIED: "UNCLEAR",
+  DISPUTED: "INTERNALLY_CONTRADICTED",
+  MISLEADING: "UNCLEAR",
+  MOSTLY_FALSE: "INTERNALLY_CONTRADICTED",
+  FALSE: "INTERNALLY_CONTRADICTED",
+  INSUFFICIENT_EVIDENCE: "UNSUPPORTED_WITHIN_ARTICLE",
 };
 
 const LEGACY_BASIS_TO_EVIDENCE = {
@@ -125,79 +128,142 @@ const LEGACY_BASIS_TO_EVIDENCE = {
   UNKNOWN: "UNKNOWN",
 };
 
+// 2.0 support -> 2.1 support
+const SUPPORT_20_TO_21 = {
+  ARTICLE_SUPPORTED: "ARTICLE_SUPPORTED",
+  PARTIALLY_ARTICLE_SUPPORTED: "PARTIALLY_ARTICLE_SUPPORTED",
+  ATTRIBUTED: "ATTRIBUTED",
+  EVIDENCE_GAP: "UNSUPPORTED_WITHIN_ARTICLE",
+  UNVERIFIED: "UNCLEAR",
+  INSUFFICIENT_EVIDENCE: "UNSUPPORTED_WITHIN_ARTICLE",
+  CONTRADICTED_IN_ARTICLE: "INTERNALLY_CONTRADICTED",
+  MISLEADING_PRESENTATION: "UNCLEAR",
+};
+
+// 1.x flags / 2.0 issues -> 2.1 concerns. Verification-absence codes are
+// dropped: they were never a concern about the article (ADR-008).
+const ISSUE_TO_CONCERN = {
+  MISSING_CONTEXT: "MATERIAL_MISSING_CONTEXT",
+  UNSUPPORTED_ACCUSATION: "UNSUPPORTED_SERIOUS_ALLEGATION",
+  OUTDATED_INFORMATION: "OUTDATED_INFORMATION",
+  STATISTICAL_MISREPRESENTATION: "MISLEADING_STATISTIC",
+  HEADLINE_CONTENT_MISMATCH: "HEADLINE_OVERSTATEMENT",
+  UNATTRIBUTED_CLAIM: "AMBIGUOUS_ATTRIBUTION",
+  WEAK_SOURCE: "AMBIGUOUS_ATTRIBUTION",
+  CONTRADICTORY_STATEMENTS: "INTERNAL_CONTRADICTION",
+  OPINION_PRESENTED_AS_FACT: "OPINION_PRESENTED_AS_FACT",
+  SELECTIVE_EVIDENCE: "SELECTIVE_EVIDENCE",
+  UNKNOWN_SOURCE: "AMBIGUOUS_ATTRIBUTION",
+  EXTERNAL_VERIFICATION_REQUIRED: null,
+};
+
+const mapCodes = (codes) => (Array.isArray(codes) ? codes : [])
+  .map((c) => (typeof c === "string" && c.toUpperCase() in ISSUE_TO_CONCERN ? ISSUE_TO_CONCERN[c.toUpperCase()] : c))
+  .filter(Boolean);
+
 /**
- * Convert a schema 1.x result (as stored) into the raw 2.0 shape that
- * validateAnalysis accepts. Free-text explanations become `evidence`
- * (what the model said backs or fails to back the claim); flags become
- * article-level issues. Nothing is invented.
+ * Convert a schema 1.x result (as stored) into the 2.1 raw shape.
+ * Explanations become `evidence`; flags become article-level concerns.
+ * Nothing is invented.
  */
 export function migrateLegacy(raw) {
   if (!raw || typeof raw !== "object") return raw;
-  if (raw.assessment || !raw.analysis) return raw; // already 2.0 (or unrecognizable)
+  if (raw.assessment || !raw.analysis) return raw;
   const a = raw.analysis || {};
   const claims = (Array.isArray(raw.claims) ? raw.claims : []).map((c, i) => ({
     id: `c${i + 1}`,
     text: c && c.text,
     type: c && c.type,
     support: c && LEGACY_SUPPORT[String(c.classification || "").toUpperCase()],
-    confidence: c && c.confidence,
+    attribution: c && String(c.basis || "").toUpperCase() === "ATTRIBUTION" ? "CLEAR" : "UNCLEAR",
     evidence_type: c && (LEGACY_BASIS_TO_EVIDENCE[String(c.basis || "UNKNOWN").toUpperCase()] || "UNKNOWN"),
     evidence: c && c.explanation,
     gap: c && c.missing_information,
     inference: c && c.implied,
-    issues: [],
-    external_verification_required: false,
+    concerns: [],
   }));
-  const issues = (Array.isArray(raw.flags) ? raw.flags : []).map((f) => ({
-    type: f && f.type,
-    note: f && f.explanation,
-    claim_ids: [],
-  }));
+  const concerns = (Array.isArray(raw.flags) ? raw.flags : [])
+    .map((f) => ({ type: f && ISSUE_TO_CONCERN[String(f.type || "").toUpperCase()], note: f && f.explanation, claim_ids: [] }))
+    .filter((f) => f.type);
   const fr = raw.framing || {};
   return {
-    assessment: { article_support: a.overall_factual_support, confidence: a.confidence, rationale: a.rationale },
+    assessment: { confidence: a.confidence, rationale: a.rationale },
+    source_transparency: {},
     claims,
-    issues,
-    framing: {
-      detected: fr.detected,
-      type: fr.type,
-      strength: fr.strength,
-      confidence: fr.confidence,
-      observations: fr.explanation ? [fr.explanation] : [],
-    },
+    concerns,
+    framing: { detected: fr.detected, type: fr.type, strength: fr.strength, confidence: fr.confidence, observations: fr.explanation ? [fr.explanation] : [] },
     summary: raw.summary,
     __migrated_from: typeof raw.schema_version === "string" ? raw.schema_version : "1.x",
+  };
+}
+
+/**
+ * Convert a schema 2.0 result into the 2.1 raw shape: support vocabulary,
+ * issue codes -> concern codes, verification flags dropped.
+ */
+export function migrate20(raw) {
+  if (!raw || typeof raw !== "object" || !raw.assessment) return raw;
+  const is20 = raw.schema_version === "2.0" || raw.issues !== undefined ||
+    (Array.isArray(raw.claims) && raw.claims.some((c) => c && typeof c === "object" && ("external_verification_required" in c || "issues" in c)));
+  if (!is20) return raw;
+  const claims = (Array.isArray(raw.claims) ? raw.claims : []).map((c) => c && typeof c === "object" ? {
+    ...c,
+    support: SUPPORT_20_TO_21[String(c.support || "").toUpperCase()] || c.support,
+    attribution: c.attribution || (["NAMED_SOURCE", "DIRECT_QUOTE", "PRIMARY_DOCUMENT", "OFFICIAL_RECORD", "SECONDARY_SOURCE"].includes(String(c.evidence_type || "").toUpperCase()) ? "CLEAR" : "UNCLEAR"),
+    concerns: mapCodes(c.issues),
+  } : c);
+  const concerns = (Array.isArray(raw.issues) ? raw.issues : [])
+    .map((f) => f && typeof f === "object" ? { ...f, type: ISSUE_TO_CONCERN[String(f.type || "").toUpperCase()] } : null)
+    .filter((f) => f && f.type);
+  return {
+    ...raw,
+    claims,
+    concerns,
+    source_transparency: raw.source_transparency || {},
+    __migrated_from: raw.__migrated_from || raw.schema_version || "2.0",
   };
 }
 
 // ------------------------------------------------------------ validation
 
 /**
- * @param {object|null} raw parsed model output (2.0) or a migrated 1.x result
- * @returns {{ ok: true, value: object, issues: string[] } | { ok: false, errors: string[] }}
+ * Overall status from concerns only. External verification status never
+ * plays a part (ADR-008).
+ */
+export function deriveStatus(claims, concerns) {
+  const codes = [...concerns.map((c) => c.type), ...claims.flatMap((c) => c.concerns || [])];
+  if (codes.some((c) => CONCERN_SEVERITY[c] === "SIGNIFICANT")) return "SIGNIFICANT_CONCERNS";
+  if (codes.length > 0) return "REVIEW_RECOMMENDED";
+  return "NO_SIGNIFICANT_CONCERNS";
+}
+
+/**
+ * @param {object|null} raw parsed model output (2.1), or a 1.x / 2.0 result
+ * @returns {{ ok: true, value: object, issues: string[], migrated_from: string|null } | { ok: false, errors: string[] }}
  */
 export function validateAnalysis(raw) {
   const errors = [];
   const notes = [];
   if (!raw || typeof raw !== "object") return { ok: false, errors: ["output is not a JSON object"] };
   if (!raw.assessment && raw.analysis) raw = migrateLegacy(raw);
+  raw = migrate20(raw);
 
   // assessment
   const a = raw.assessment && typeof raw.assessment === "object" ? raw.assessment : null;
   if (!a) errors.push("missing assessment object");
-  if (a && !Number.isFinite(Number(a.article_support))) errors.push("assessment.article_support is not a number");
   if (a && !Number.isFinite(Number(a.confidence))) errors.push("assessment.confidence is not a number");
-  const assessment = {
-    article_support: clamp01(a && a.article_support),
-    confidence: clamp01(a && a.confidence),
-    rationale: str(a && a.rationale, LIMITS.MAX_RATIONALE_CHARS),
-    verification_level: VERIFICATION_LEVEL, // never taken from the model
-    external_verification: EXTERNAL_VERIFICATION, // never taken from the model
+
+  // source transparency (observable; all optional booleans)
+  const st = raw.source_transparency && typeof raw.source_transparency === "object" ? raw.source_transparency : {};
+  const source_transparency = {
+    named_sources: st.named_sources === true,
+    primary_references: st.primary_references === true,
+    direct_quotes: st.direct_quotes === true,
   };
 
   // claims
   const claims = [];
-  const seenIds = new Set();
+  const idMapRaw = new Map();
   if (!Array.isArray(raw.claims)) {
     errors.push("claims is not an array");
   } else {
@@ -209,61 +275,56 @@ export function validateAnalysis(raw) {
         notes.push(`claim ${i} dropped: missing text or invalid support`);
         return;
       }
-      // Ids are ours: sequential, unique, never trusted from the model
-      // except to resolve issue references below.
       const id = `c${claims.length + 1}`;
-      if (c && typeof c.id === "string") seenIds.add(c.id.trim());
-      const issues = codes(c.issues, ISSUE_TYPES, LIMITS.MAX_ISSUES_PER_CLAIM);
-      const externalRequired = c.external_verification_required === true || issues.includes("EXTERNAL_VERIFICATION_REQUIRED");
+      if (c && typeof c.id === "string") idMapRaw.set(c.id.trim().slice(0, 16), id);
+      const type = oneOf(c.type, CLAIM_TYPES) || (support === "ALLEGATION_REPORTED" ? "ALLEGATION" : "FACTUAL");
       claims.push({
         id,
-        model_id: c && typeof c.id === "string" ? c.id.trim().slice(0, 16) : null,
         text,
-        type: oneOf(c.type, CLAIM_TYPES) || "FACTUAL",
+        type,
         support,
-        confidence: clamp01(c.confidence),
+        attribution: oneOf(c.attribution, ATTRIBUTIONS) || (support === "ATTRIBUTED" || support === "ALLEGATION_REPORTED" ? "CLEAR" : "UNCLEAR"),
         evidence_type: oneOf(c.evidence_type, EVIDENCE_TYPES) || "UNKNOWN",
         evidence: str(c.evidence, LIMITS.MAX_FIELD_CHARS),
+        concerns: codes(c.concerns, CONCERN_TYPES, LIMITS.MAX_CONCERNS_PER_CLAIM),
         gap: str(c.gap, LIMITS.MAX_FIELD_CHARS),
         inference: str(c.inference, LIMITS.MAX_FIELD_CHARS),
-        issues,
-        external_verification_required: externalRequired,
       });
     });
     if (raw.claims.length > LIMITS.MAX_CLAIMS) notes.push(`claims truncated to ${LIMITS.MAX_CLAIMS}`);
   }
-  // Resolve model ids -> our ids for issue references, then drop model ids.
-  const idMap = new Map(claims.filter((c) => c.model_id).map((c) => [c.model_id, c.id]));
-  for (const c of claims) delete c.model_id;
 
-  // article-level issues
-  const issues = [];
-  if (raw.issues !== undefined && !Array.isArray(raw.issues)) {
-    notes.push("issues is not an array; ignored");
-  } else if (Array.isArray(raw.issues)) {
-    raw.issues.forEach((f, i) => {
-      if (issues.length >= LIMITS.MAX_ISSUES) return;
-      const type = f && oneOf(f.type, ISSUE_TYPES);
+  // article-level concerns
+  const concerns = [];
+  if (raw.concerns !== undefined && !Array.isArray(raw.concerns)) {
+    notes.push("concerns is not an array; ignored");
+  } else if (Array.isArray(raw.concerns)) {
+    raw.concerns.forEach((f, i) => {
+      if (concerns.length >= LIMITS.MAX_CONCERNS) return;
+      const type = f && oneOf(f.type, CONCERN_TYPES);
       if (!type) {
-        notes.push(`issue ${i} dropped: invalid type`);
+        notes.push(`concern ${i} dropped: invalid type`);
         return;
       }
       const claim_ids = (Array.isArray(f.claim_ids) ? f.claim_ids : [])
-        .map((x) => (typeof x === "string" ? idMap.get(x.trim()) || (claims.some((c) => c.id === x.trim()) ? x.trim() : null) : null))
+        .map((x) => (typeof x === "string" ? idMapRaw.get(x.trim()) || (claims.some((c) => c.id === x.trim()) ? x.trim() : null) : null))
         .filter(Boolean)
         .slice(0, LIMITS.MAX_CLAIMS);
-      issues.push({ type, note: str(f.note, LIMITS.MAX_FIELD_CHARS), claim_ids });
+      concerns.push({ type, severity: CONCERN_SEVERITY[type], note: str(f.note, LIMITS.MAX_FIELD_CHARS), claim_ids });
     });
   }
 
   // framing
   const fr = raw.framing && typeof raw.framing === "object" ? raw.framing : null;
   if (!fr) errors.push("missing framing object");
-  const detected = Boolean(fr && fr.detected === true);
   const observations = (fr && Array.isArray(fr.observations) ? fr.observations : [])
     .map((o) => str(o, LIMITS.MAX_OBSERVATION_CHARS))
     .filter(Boolean)
     .slice(0, LIMITS.MAX_FRAMING_OBSERVATIONS);
+  // Framing needs observable characteristics; "detected" without any is
+  // downgraded (the model was told not to force LOW framing).
+  const detected = Boolean(fr && fr.detected === true && observations.length > 0);
+  if (fr && fr.detected === true && observations.length === 0) notes.push("framing.detected without observations; set to false");
   const framing = {
     detected,
     type: detected ? oneOf(fr.type, FRAMING_TYPES) || "OTHER" : null,
@@ -279,6 +340,14 @@ export function validateAnalysis(raw) {
 
   if (errors.length) return { ok: false, errors };
 
+  const assessment = {
+    status: deriveStatus(claims, concerns), // derived, never taken from the model
+    confidence: clamp01(a.confidence),
+    rationale: str(a.rationale, LIMITS.MAX_RATIONALE_CHARS),
+    verification_level: VERIFICATION_LEVEL, // never taken from the model
+    external_verification: EXTERNAL_VERIFICATION, // metadata, never a concern
+  };
+
   return {
     ok: true,
     issues: notes,
@@ -286,8 +355,9 @@ export function validateAnalysis(raw) {
     value: {
       schema_version: ANALYSIS_SCHEMA_VERSION, // never taken from the model
       assessment,
+      source_transparency,
       claims,
-      issues,
+      concerns,
       framing,
       summary,
     },

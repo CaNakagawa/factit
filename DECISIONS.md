@@ -245,3 +245,61 @@ observable characteristics.
 - Provider JSON/structured-output modes: orthogonal; still possible
   later for models that emit invalid JSON.
 
+---
+
+## ADR-008 - Fact It V1 uses concern detection rather than verification absence as the primary warning model
+
+### Context
+
+Under schema 2.0 an ordinary cybersecurity report ("Microsoft released a
+patch", "CVSS 10.0", "researcher X found it", "no customer action
+required") produced a dozen "needs external verification" warnings and
+an amber banner. The cause was structural: the prompt asked for
+`external_verification_required` per claim, the UI bucketed
+`ATTRIBUTED` claims as "needs verification", the banner summed them into
+"N need review", and the article-support percentage penalised
+attribution without shown evidence. Fact It not having checked a source
+was being presented as a problem with the article.
+
+### Decision
+
+Fact It V1 answers "are there meaningful signals that this content may
+mislead the reader?", not "has Fact It proven every statement?".
+
+- NOT_EXTERNALLY_VERIFIED != SUSPICIOUS. External verification status is
+  metadata (`assessment.external_verification: NOT_PERFORMED`), shown
+  once. It never creates a concern, never colors anything, never counts.
+- The overall status is derived from concerns only:
+  NO_SIGNIFICANT_CONCERNS (none) / REVIEW_RECOMMENDED (moderate) /
+  SIGNIFICANT_CONCERNS (any significant). The validator derives it; the
+  model cannot set it.
+- "No significant concerns" is a valid, complete result. Empty concern
+  lists and `framing.detected: false` are normal. Framing without
+  observable characteristics is downgraded to not detected.
+- Claims describe their status within the article (ARTICLE_SUPPORTED,
+  PARTIALLY_ARTICLE_SUPPORTED, ATTRIBUTED, ALLEGATION_REPORTED,
+  UNSUPPORTED_WITHIN_ARTICLE, INTERNALLY_CONTRADICTED, UNCLEAR) plus
+  `attribution` and `evidence_type` as observable source transparency;
+  none of these is a concern by itself.
+- Concerns carry a fixed severity (schema.js CONCERN_SEVERITY). An
+  article reporting someone else's allegation with attribution is
+  ALLEGATION_REPORTED, not an unsupported claim. MATERIAL_MISSING_CONTEXT
+  applies only when the omission changes the reading of a central claim.
+  Topic is not framing.
+- The article-support percentage is removed as a user-facing signal;
+  the status is the primary signal. No truth percentage is introduced.
+- Source reputation is not used (future phase).
+
+### Consequences
+
+- An ordinary, internally consistent, attributed article shows green
+  with zero concerns. Warnings appear only with a concrete reason.
+- Output tokens drop further: ordinary claims are compact records and
+  prose is spent only on concerns (about half again on a 12-claim
+  article versus 2.0).
+- Cached 2.0 and 1.x results migrate on read; their verification-absence
+  codes are dropped, other issue codes map to concern codes, and the
+  status is re-derived. About shows the migration note.
+- A future Evidence Engine can fill `external_verification` per claim
+  without changing the concern model.
+

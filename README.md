@@ -3,12 +3,18 @@
 Know what you're reading.
 
 Fact It is an open-source Chromium extension that gives you a
-**preliminary, AI-assisted analysis** of the article you are reading:
-which claims it makes, how well the article itself supports them,
-what information is missing, and where framing may be at play.
+**preliminary, AI-assisted analysis** of the article you are reading.
+It looks for concrete signals that the content may mislead: internal
+contradictions, headlines the body does not support, serious
+allegations presented as fact, misleading statistics, materially
+missing context, unclear attribution where it matters, and framing
+with observable characteristics.
 
-It is not a truth oracle. It never consults external sources. It tells
-you what deserves a second look.
+It is not a truth oracle and it never consults external sources.
+"No significant concerns" is a normal result: it means no meaningful
+warning signals were found, not that the article is true. Fact It not
+having verified a claim is never, by itself, a concern about the
+article.
 
 ## How it works
 
@@ -20,20 +26,20 @@ you what deserves a second look.
    (bring your own key). Fact It runs no servers and never sees your
    key or your articles.
 3. The model's answer is validated against a strict schema and shown
-   in the bar: **article support** (how well the article backs its own
-   claims), how many claims need review, always labelled *AI
-   preliminary · not externally verified*.
-4. Click **Details** for the **Summary**: the score, analysis
-   confidence, the verification level, three counters (supported
-   within article / need external verification / evidence or context
-   issues), key findings and possible framing. From there, **Detailed
-   analysis** opens tabs: Overview (rationale, highlights: supported
-   in article vs needs review), Claims (each expandable: support,
-   evidence type, article evidence, what may be missing, possible
-   reader inference, issues, external verification status), Evidence
-   (evidence profile and side-by-side), Framing (observable
-   characteristics) and About (provider, model, prompt version, tokens,
-   cost).
+   in the bar as a **concern status**: *No significant concerns*,
+   *Review recommended · N concerns* or *Significant concerns · N
+   issues*, always labelled *AI preliminary · not externally verified*.
+4. Click **Details** for the **Summary**: the status and what it
+   means, analysis confidence, counters (claims analyzed, significant
+   concerns, observations, contradictions), the verification notice,
+   key findings, observable source transparency and possible framing.
+   From there, **Detailed analysis** opens tabs: Overview (rationale,
+   concerns vs ordinary reporting), Claims (each expandable: status
+   within the article, attribution, article evidence, evidence type,
+   concerns, what is missing, possible reader inference), Evidence
+   (evidence profile and side-by-side for claims with concerns),
+   Framing (observable characteristics) and About (provider, model,
+   prompt version, tokens, cost).
 5. The result is cached locally by a hash of the article text, so
    revisiting the same article costs nothing. **Re-analyze** is always
    explicit.
@@ -90,12 +96,15 @@ per analysis and a running total in the settings page.
 
 ## Reading the result
 
-- **Article support** is how well the article's factual claims are
-  supported *within the article* - attribution, evidence shown,
-  internal consistency. It is **not** a truth verdict and it is **not**
-  about political, ideological or religious neutrality. "Supported
-  within article" never means "verified": external verification is not
-  performed in this version.
+- The **status** reflects the strength of warning signals found in the
+  content. It is **not** a truth verdict and it is **not** about
+  political, ideological or religious neutrality. Ordinary attributed
+  reporting is not a concern; "Fact It did not verify this" is
+  metadata, shown once, never a warning.
+- Claim labels describe the article: "Supported within article",
+  "Attributed reporting", "Allegation reported, attributed",
+  "Unsupported within article", "Contradicted within article". None of
+  them means "verified".
 - **Framing** is assessed separately and never lowers factual support.
   A strongly framed article can be accurate; a neutral one can be
   wrong.

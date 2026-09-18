@@ -50,6 +50,7 @@
   let lastResult = null; // kept so the bar can be restored after dismiss without re-running
   let lastCached = false;
   let lastCost = null;
+  let lastArticleMeta = null; // author / date / domain for the source-transparency list
 
   function ensureBar() {
     if (!bar || !bar.host.isConnected) {
@@ -59,18 +60,23 @@
         onDetails: () => panel && panel.toggle(),
       });
       panel = FactIt.createPanel(bar.root);
-      if (lastResult) showResult(lastResult, lastCached, lastCost);
+      if (lastResult) showResult(lastResult, lastCached, lastCost, lastArticleMeta);
     }
     return bar;
   }
 
-  function showResult(result, cached, cost) {
+  function showResult(result, cached, cost, articleMeta) {
     lastResult = result;
     lastCached = cached;
     lastCost = cost || null;
-    panel.setResult(result, { cached, cost: lastCost, onReanalyze: () => runAnalysis({ force: true }) });
+    if (articleMeta) lastArticleMeta = articleMeta;
+    panel.setResult(result, { cached, cost: lastCost, article: lastArticleMeta, onReanalyze: () => runAnalysis({ force: true }) });
     bar.setResult(result, { cached });
   }
+
+  const articleMetaOf = (article) => article && article.document
+    ? { author: article.document.author, published_at: article.document.published_at, domain: article.document.domain }
+    : null;
 
   // Toolbar click: never analyzes. Shows the bar (idle or last result) and,
   // when a result exists, toggles the details panel.
@@ -119,10 +125,10 @@
       if (reply && reply.ok) {
         const r = reply.result;
         console.log(
-          `[Fact It] analysis (${r.assessment.verification_level}${reply.cached ? ", cached" : ""}) article_support=${r.assessment.article_support} confidence=${r.assessment.confidence} claims=${r.claims.length} issues=${r.issues.length} framing=${r.framing.detected ? r.framing.type + "/" + r.framing.strength : "none"} via ${r.meta.provider}/${r.meta.model}`,
+          `[Fact It] analysis (${r.assessment.verification_level}${reply.cached ? ", cached" : ""}) status=${r.assessment.status} confidence=${r.assessment.confidence} claims=${r.claims.length} concerns=${r.concerns.length + r.claims.reduce((n, c) => n + c.concerns.length, 0)} framing=${r.framing.detected ? r.framing.type + "/" + r.framing.strength : "none"} via ${r.meta.provider}/${r.meta.model}`,
         );
         console.log("[Fact It] analysis result:", r);
-        showResult(r, Boolean(reply.cached), reply.cost);
+        showResult(r, Boolean(reply.cached), reply.cost, articleMetaOf(article));
       } else {
         const err = (reply && reply.error) || { kind: "unknown", message: "No reply from background." };
         // Details (e.g. the raw model text for invalid_output) go into the
@@ -163,7 +169,7 @@
       const reply = await chrome.runtime.sendMessage({ type: "FACTIT_LOOKUP", content_hash: article.content_hash });
       if (reply && reply.ok && reply.result) {
         console.log("[Fact It] cached analysis found:", reply.cached_at);
-        showResult(reply.result, true, reply.cost);
+        showResult(reply.result, true, reply.cost, articleMetaOf(article));
       }
     } catch {
       // Background unavailable; stay idle.

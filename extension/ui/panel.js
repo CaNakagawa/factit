@@ -1,7 +1,7 @@
-// Fact It - analysis panel (schema 2.0).
+// Fact It - analysis panel (schema 2.1, concern detection).
 //
 // Progressive disclosure inside the bar's closed shadow root:
-//   level 2  Summary        signal, counters, key findings, framing, actions
+//   level 2  Summary        status, counters, key findings, source transparency, framing, actions
 //   level 3  Detailed       tabs: Overview · Claims · Evidence · Framing · About
 //
 // Classic script; exposes FactIt.createPanel. Every string shown here comes
@@ -30,14 +30,16 @@
     .panel .small { font-size: 12px; }
 
     /* summary */
-    .panel .score { display: flex; align-items: center; gap: 14px; margin: 12px 0 6px; }
-    .panel .score .big { font-size: 34px; font-weight: 800; line-height: 1; }
-    .panel .score .word { font-size: 14px; color: #f5f7fa; font-weight: 600; }
-    .panel .meter { display: block; width: 100%; height: 6px; border-radius: 3px; background: #3e4c59; overflow: hidden; margin: 6px 0 2px; }
-    .panel .meter > span { display: block; height: 100%; }
+    .panel .status { display: flex; align-items: center; gap: 12px; margin: 12px 0 4px; }
+    .panel .status .dot { width: 14px; height: 14px; border-radius: 50%; flex: none; }
+    .panel .status .word { font-size: 17px; color: #f5f7fa; font-weight: 700; line-height: 1.2; }
+    .panel .transparency { list-style: none; margin: 0; padding: 0; font-size: 12px; }
+    .panel .transparency li { display: flex; gap: 8px; align-items: baseline; margin: 2px 0; }
+    .panel .transparency .yes { color: #22c55e; }
+    .panel .transparency .no { color: #9aa5b1; }
     .panel .level { margin-top: 10px; padding: 8px 10px; border: 1px solid #52606d; border-radius: 4px; }
     .panel .level strong { color: #f5f7fa; font-size: 11px; letter-spacing: .06em; }
-    .panel .counters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0 4px; }
+    .panel .counters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 14px 0 4px; }
     .panel .counter { border-radius: 4px; padding: 8px; background: #263340; text-align: center; }
     .panel .counter .n { font-size: 22px; font-weight: 800; line-height: 1.1; }
     .panel .counter .l { font-size: 11px; color: #cbd2d9; }
@@ -120,67 +122,74 @@
     const D = d();
     const frag = document.createDocumentFragment();
     const a = result.assessment || {};
-    const support = Number(a.article_support) || 0;
+    const st = D.status(result);
     const n = D.counts(result);
-    const color = n.total ? D.supportColor(support) : "#9aa5b1";
 
     const head = el("div", "head");
     head.append(el("h2", "", "Fact It"), closeButton(ctx));
     frag.append(head);
 
-    const score = el("div", "score");
-    const big = el("div", "big", n.total ? `${Math.round(support * 100)}%` : "—");
-    big.style.color = color;
-    const words = el("div");
-    words.append(
-      el("div", "word", n.total ? D.supportWord(support) : "No verifiable claims found"),
-      el("div", "muted small", `Analysis confidence: ${D.pct(a.confidence)} (${D.confidenceWord(a.confidence)})`),
-    );
-    score.append(big, words);
-    frag.append(score);
-    const meter = el("span", "meter");
-    const fill = el("span");
-    fill.style.width = D.pct(support);
-    fill.style.background = color;
-    meter.append(fill);
-    frag.append(meter);
-    frag.append(el("p", "muted small", "Article support = how well the article backs its own claims. Not a truth score; framing does not affect it."));
-
-    const level = el("div", "level");
-    level.append(el("strong", "", "AI PRELIMINARY · NO EXTERNAL VERIFICATION PERFORMED"));
-    level.append(el("p", "small", "This analysis evaluates the content and evidence presented by the article. External sources were not independently verified."));
-    frag.append(level);
+    frag.append(section("Status"));
+    const status = el("div", "status");
+    const dot = el("span", "dot");
+    dot.style.background = n.total ? st.color : "#9aa5b1";
+    status.append(dot, el("div", "word", n.total ? `${st.label}${st.code === "NO_SIGNIFICANT_CONCERNS" ? " detected" : ""}` : "No verifiable claims found"));
+    frag.append(status);
+    frag.append(el("p", "small", n.total ? st.meaning : "The analyzed content did not contain claims Fact It could inspect."));
+    if (a.rationale) frag.append(el("p", "muted small", a.rationale));
+    frag.append(el("p", "muted small", `Analysis confidence: ${D.pct(a.confidence)} (${D.confidenceWord(a.confidence)})`));
 
     if (n.total) {
       const counters = el("div", "counters");
-      const counter = (num, label, bucket) => {
+      const counter = (num, label, color) => {
         const c = el("div", "counter");
         const nn = el("div", "n", String(num));
-        nn.style.color = D.BUCKET_COLOR[bucket];
+        nn.style.color = color;
         c.append(nn, el("div", "l", label));
         return c;
       };
       counters.append(
-        counter(n.supported, "supported within article", "supported"),
-        counter(n.verify, "need external verification", "verify"),
-        counter(n.issue + n.articleIssues, "evidence / context issues", "issue"),
+        counter(n.total, "claims analyzed", "#f5f7fa"),
+        counter(n.significant, "significant concerns", n.significant ? "#ef4444" : "#9aa5b1"),
+        counter(n.observations, "observations", n.observations ? "#f59e0b" : "#9aa5b1"),
+        counter(n.contradictions, "contradictions", n.contradictions ? "#ef4444" : "#9aa5b1"),
       );
       frag.append(counters);
     }
 
+    const level = el("div", "level");
+    level.append(el("strong", "", "AI PRELIMINARY · NO EXTERNAL VERIFICATION PERFORMED"));
+    level.append(el("p", "small", "This analysis evaluates the content and evidence presented by the article. External sources were not independently verified. That is metadata about Fact It, not a concern about the article."));
+    frag.append(level);
+
+    frag.append(section("Key findings"));
     const findings = D.keyFindings(result, 4);
-    if (findings.length) {
-      frag.append(section("Key findings"));
+    if (!findings.length) {
+      frag.append(el("p", "", n.total ? "No significant concerns detected. Claims are internally consistent and, where it matters, attributed." : "Nothing to report."));
+    } else {
       const list = el("div");
       for (const f of findings) {
         const row = el("div", "finding");
         const body = el("div");
         body.append(el("div", "lbl", f.label), el("div", "", f.text));
+        if (f.note) body.append(el("div", "muted small", f.note));
         row.append(mark(f.kind), body);
         list.append(row);
       }
       frag.append(list);
+      if (n.concerns > findings.length) frag.append(el("p", "muted small", `+${n.concerns - findings.length} more in the detailed analysis.`));
     }
+
+    frag.append(section("Source transparency"));
+    const tr = D.sourceTransparency(result, ctx.article);
+    const ul = el("ul", "transparency");
+    for (const it of tr.items) {
+      const li = el("li");
+      li.append(el("span", it.present ? "yes" : "no", it.present ? "✓" : "–"), el("span", "", it.label));
+      ul.append(li);
+    }
+    frag.append(ul);
+    frag.append(el("p", "muted small", "Observable sourcing characteristics of the text. They do not verify the sources and do not rate the publication."));
 
     const fr = result.framing || {};
     frag.append(section("Possible framing"));
@@ -190,10 +199,10 @@
     } else {
       frag.append(el("p", "muted", "No notable framing observed."));
     }
-    frag.append(el("p", "muted small", "Framing does not affect the article-support score."));
+    frag.append(el("p", "muted small", "Framing is reported separately and does not affect the status."));
 
     const actions = el("div", "actions");
-    const viewClaims = el("button", "primary", `View all claims (${n.total})`);
+    const viewClaims = el("button", "primary", `Inspect claims (${n.total})`);
     viewClaims.addEventListener("click", () => ctx.showDetail("claims"));
     const detailed = el("button", "primary", "Detailed analysis");
     detailed.addEventListener("click", () => ctx.showDetail("overview"));
@@ -257,7 +266,7 @@
   function legend() {
     const D = d();
     const l = el("div", "legend");
-    for (const b of ["supported", "verify", "issue"]) {
+    for (const b of ["ok", "caution", "concern"]) {
       const s = el("span");
       s.append(mark(b, ""), document.createTextNode(D.BUCKET_LABEL[b]));
       s.firstChild.className = "";
@@ -275,41 +284,53 @@
     const D = d();
     const wrap = el("div");
     const a = result.assessment || {};
+    const st = D.status(result);
     const n = D.counts(result);
     const strong = el("p");
-    const b = el("strong", "", `Article support: ${D.pct(a.article_support)} · ${D.supportWord(Number(a.article_support) || 0)}`);
-    b.style.color = n.total ? D.supportColor(Number(a.article_support) || 0) : "#9aa5b1";
+    const b = el("strong", "", n.total ? st.label : "No verifiable claims found");
+    b.style.color = n.total ? st.color : "#9aa5b1";
     strong.append(b);
     wrap.append(strong);
     if (a.rationale) wrap.append(el("p", "", a.rationale));
-    wrap.append(el("p", "muted small", `Analysis confidence ${D.pct(a.confidence)} · AI preliminary · external verification not performed.`));
+    wrap.append(el("p", "muted small", `Analysis confidence ${D.pct(a.confidence)} · AI preliminary · external verification not performed (metadata, not a concern).`));
 
     wrap.append(section("Summary"));
     wrap.append(el("p", "", result.summary || "No summary provided."));
 
     const h = D.highlights(result);
     const hl = el("div", "hl");
-    const listOf = (items, title, bucket, empty, withCategory) => {
-      const h4 = el("h4", "", `${title} (${items.length})`);
-      h4.style.color = D.BUCKET_COLOR[bucket];
-      hl.append(h4);
-      if (!items.length) { hl.append(el("p", "muted small", empty)); return; }
+    const h4c = el("h4", "", `Concerns (${h.concerns.length})`);
+    h4c.style.color = h.concerns.length ? "#ef4444" : "#9aa5b1";
+    hl.append(h4c);
+    if (!h.concerns.length) hl.append(el("p", "muted small", "No concerns were found in the content."));
+    else {
       const ul = el("ul");
-      for (const it of items.slice(0, 8)) {
+      for (const it of h.concerns.slice(0, 8)) {
         const li = el("li");
-        li.style.borderLeftColor = D.BUCKET_COLOR[bucket];
-        if (withCategory) li.append(el("span", "cat", it.category));
-        li.append(document.createTextNode(it.text));
+        li.style.borderLeftColor = it.severity === "SIGNIFICANT" ? "#ef4444" : "#f59e0b";
+        li.append(el("span", "cat", it.category), document.createTextNode(it.text));
         ul.append(li);
       }
-      if (items.length > 8) ul.append(el("li", "muted small", `+${items.length - 8} more in Claims`));
+      if (h.concerns.length > 8) ul.append(el("li", "muted small", `+${h.concerns.length - 8} more in Claims`));
       hl.append(ul);
-    };
-    listOf(h.supported, "Supported in article", "supported", "No claim is backed by evidence shown in the article.", false);
-    const review = h.review;
-    listOf(review, "Needs review", "issue", "Nothing needs review.", true);
+    }
+    const h4o = el("h4", "", `Ordinary reporting, no concern (${h.ordinary.length})`);
+    h4o.style.color = "#22c55e";
+    hl.append(h4o);
+    if (!h.ordinary.length) hl.append(el("p", "muted small", "Every claim carries a concern."));
+    else {
+      const ul = el("ul");
+      for (const it of h.ordinary.slice(0, 6)) {
+        const li = el("li");
+        li.style.borderLeftColor = "#22c55e";
+        li.append(el("span", "cat", it.label), document.createTextNode(it.text));
+        ul.append(li);
+      }
+      if (h.ordinary.length > 6) ul.append(el("li", "muted small", `+${h.ordinary.length - 6} more in Claims`));
+      hl.append(ul);
+    }
     wrap.append(section("Highlights"), hl);
-    wrap.append(el("p", "muted small", "\"Supported in article\" means the article presents support for the claim; it is not a statement that the claim is true."));
+    wrap.append(el("p", "muted small", "\"No concern\" means Fact It found no concrete signal in the content; it is not a statement that the claim is true."));
     return wrap;
   }
 
@@ -325,44 +346,45 @@
       wrap.append(el("p", "muted", "No verifiable claims were identified."));
       return wrap;
     }
-    const order = { issue: 0, verify: 1, supported: 2 };
-    const sorted = claims.map((c, i) => ({ c, i, b: D.bucketOf(c) })).sort((x, y) => order[x.b] - order[y.b] || x.i - y.i);
-    for (const { c, b } of sorted) wrap.append(renderClaim(c, b));
+    const order = { concern: 0, caution: 1, ok: 2 };
+    const sorted = claims.map((c, i) => ({ c, i, b: D.bucketOf(c, result) })).sort((x, y) => order[x.b] - order[y.b] || x.i - y.i);
+    for (const { c, b } of sorted) wrap.append(renderClaim(c, b, result));
 
-    const articleIssues = Array.isArray(result.issues) ? result.issues : [];
-    if (articleIssues.length) {
-      wrap.append(section(`Article-level issues (${articleIssues.length})`));
+    const articleConcerns = Array.isArray(result.concerns) ? result.concerns : [];
+    if (articleConcerns.length) {
+      wrap.append(section(`Article-level concerns (${articleConcerns.length})`));
       const ul = el("ul", "plain");
-      for (const issue of articleIssues) {
-        const refs = issue.claim_ids && issue.claim_ids.length ? ` (${issue.claim_ids.join(", ")})` : "";
-        ul.append(el("li", "", `${D.ISSUE_LABEL[issue.type] || D.humanize(issue.type)}${issue.note ? ": " + issue.note : ""}${refs}`));
+      for (const concern of articleConcerns) {
+        const refs = concern.claim_ids && concern.claim_ids.length ? ` (${concern.claim_ids.join(", ")})` : "";
+        ul.append(el("li", "", `${D.concernLabel(concern.type)}${concern.note ? ": " + concern.note : ""}${refs}`));
       }
       wrap.append(ul);
     }
     return wrap;
   }
 
-  function renderClaim(c, bucket) {
+  function renderClaim(c, bucket, result) {
     const D = d();
     const item = el("div", "claim");
     item.dataset.claimId = c.id;
     const button = el("button");
     button.setAttribute("aria-expanded", "false");
     const body = el("div");
-    body.append(el("div", "reason", D.reasonOf(c)), el("div", "", c.text));
+    body.append(el("div", "reason", D.reasonOf(c, result)), el("div", "", c.text));
     button.append(mark(bucket), body, el("span", "chev", "⌄"));
     const dl = el("dl");
     dl.hidden = true;
     const row = (k, v) => { dl.append(el("dt", "", k), el("dd", "", v)); };
-    row("Support", D.SUPPORT_LABEL[c.support] || D.humanize(c.support));
-    row("Type", c.type === "ALLEGATION" ? "Allegation" : "Factual claim");
-    row("Confidence", D.pct(c.confidence));
+    row("Within the article", D.SUPPORT_LABEL[c.support] || D.humanize(c.support));
+    row("Type", c.type === "ALLEGATION" ? "Allegation" : c.type === "OPINION" ? "Opinion" : "Factual claim");
+    row("Attribution", D.ATTRIBUTION_LABEL[c.attribution] || D.humanize(c.attribution));
     row("Article evidence", c.evidence || "None shown");
     row("Evidence type", D.EVIDENCE_LABEL[c.evidence_type] || D.humanize(c.evidence_type));
-    if (c.gap) row("What may be missing", c.gap);
+    const codes = D.concernsFor(c, result);
+    row("Concerns", codes.length ? codes.map(D.concernLabel).join(" · ") : "None");
+    if (c.gap) row("What is missing", c.gap);
     if (c.inference) row("Possible reader inference", c.inference);
-    if (c.issues && c.issues.length) row("Issues", c.issues.map((i) => D.ISSUE_LABEL[i] || D.humanize(i)).join(" · "));
-    row("External verification", c.external_verification_required ? "Recommended · not performed" : "Not performed");
+    row("External verification", "Not performed (metadata; not a concern)");
     button.addEventListener("click", () => {
       dl.hidden = !dl.hidden;
       button.setAttribute("aria-expanded", String(!dl.hidden));
@@ -386,18 +408,17 @@
     wrap.append(el("p", "muted small", "These describe the support the article shows, not whether it is true. External verification: not performed."));
 
     const { rows, total } = D.sideBySide(result);
-    wrap.append(section(`Side by side (${rows.length})`));
+    wrap.append(section(`Side by side: claims with concerns (${rows.length})`));
     const sbs = el("div", "sbs");
     if (!rows.length) {
-      sbs.append(el("p", "muted", total ? "Every claim is backed within the article with nothing missing and no inference beyond it." : "No claims to compare."));
+      sbs.append(el("p", "muted", total ? "No claim carries a concern, so there is nothing to put side by side. Ordinary reporting is not listed here." : "No claims to compare."));
     }
     for (const r of rows) {
       const row = el("div", "row");
       const badges = el("div");
-      badges.append(mark(r.bucket, "badge"));
-      badges.firstChild.textContent = D.SUPPORT_LABEL[r.support] || D.humanize(r.support);
-      badges.firstChild.style.background = "";
-      badges.firstChild.style.borderColor = D.BUCKET_COLOR[r.bucket];
+      const first = el("span", "badge", r.concerns.length ? D.concernLabel(r.concerns[0]) : D.SUPPORT_LABEL[r.support] || D.humanize(r.support));
+      first.style.borderColor = D.BUCKET_COLOR[r.bucket];
+      badges.append(first);
       if (r.allegation) badges.append(el("span", "badge type", "Allegation"));
       row.append(badges);
       const dl = el("dl");
@@ -434,7 +455,7 @@
     }
     wrap.append(section("What this means"));
     wrap.append(el("p", "small", "Framing describes observable characteristics of the text: which sources are chosen, what is emphasized or ordered first, which counterarguments are absent, which terms carry a charge. It says nothing about the author's or the publication's ideology, and nothing about whether the claims are true."));
-    wrap.append(el("p", "muted small", "Framing does not affect the article-support score."));
+    wrap.append(el("p", "muted small", "Framing is reported separately and does not affect the status. A subject being political, commercial or controversial is not framing."));
     return wrap;
   }
 
@@ -444,8 +465,9 @@
     const meta = result.meta || {};
     const dl = el("dl", "kv");
     const row = (k, v) => { dl.append(el("dt", "", k), el("dd", "", v)); };
+    row("Status", D.status(result).label);
     row("Verification level", "AI preliminary");
-    row("External verification", "Not performed");
+    row("External verification", "Not performed (metadata; never counted as a concern)");
     row("Provider", meta.provider || "unknown");
     row("Model", meta.model || "unknown");
     row("Prompt version", meta.prompt_version || "unknown");
@@ -463,7 +485,7 @@
       row("Tokens", "not reported by the provider");
     }
     row("Source", ctx.cached ? "local cache" : "this session");
-    if (meta.migrated_from) row("Note", `Analyzed with schema ${meta.migrated_from}; shown in the current layout. Re-analyze for evidence types and issue codes.`);
+    if (meta.migrated_from) row("Note", `Analyzed with schema ${meta.migrated_from} under the older, verification-centric prompt; shown in the current layout. Re-analyze for the concern-based analysis.`);
     if (meta.truncated_input) row("Note", "The article was cut for length; only the first part was analyzed.");
     if (Array.isArray(meta.validation_issues) && meta.validation_issues.length) row("Note", `${meta.validation_issues.length} item(s) from the model were dropped because they did not match the schema.`);
     wrap.append(section("About this analysis"), dl);
@@ -507,6 +529,7 @@
     const ctx = {
       get cached() { return Boolean(options.cached); },
       get cost() { return options.cost || null; },
+      get article() { return options.article || null; },
       get onReanalyze() { return options.onReanalyze; },
       close: () => api.close(),
       showSummary: () => { view = "summary"; render(); },

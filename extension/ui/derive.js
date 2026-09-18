@@ -1,25 +1,45 @@
-// Fact It - view derivation (schema 2.0).
+// Fact It - view derivation (schema 2.1, concern detection).
 //
 // Classic script; exposes FactIt.derive. Pure functions that turn one
 // validated AnalysisResult into everything the bar, the summary panel and
 // the detailed analysis show. Nothing here comes from the model beyond
-// the claim records themselves, so every view stays consistent and no
-// extra tokens are spent on presentation.
+// the records themselves, so every view stays consistent and no extra
+// tokens are spent on presentation.
 //
-// Vocabulary rule: "supported" always means supported WITHIN THE ARTICLE.
-// Nothing in V1 is externally verified, and the labels say so.
+// Rules (ADR-008):
+// - The overall status comes from concerns only.
+// - External verification status is metadata; it never counts as a
+//   concern, never colors anything, never increments a counter.
+// - "Supported" always means supported WITHIN THE ARTICLE.
 
 (function (root) {
+  const STATUS_LABEL = {
+    NO_SIGNIFICANT_CONCERNS: "No significant concerns",
+    REVIEW_RECOMMENDED: "Review recommended",
+    SIGNIFICANT_CONCERNS: "Significant concerns",
+  };
+  const STATUS_MEANING = {
+    NO_SIGNIFICANT_CONCERNS: "No significant misleading or problematic signals were detected in the analyzed content. This is not a statement that the article is true.",
+    REVIEW_RECOMMENDED: "There are concrete reasons for caution in the analyzed content. Review the concerns below.",
+    SIGNIFICANT_CONCERNS: "The analyzed content conflicts with itself or with what it presents. Review the concerns below before relying on it.",
+  };
+  const STATUS_COLOR = {
+    NO_SIGNIFICANT_CONCERNS: "#22c55e",
+    REVIEW_RECOMMENDED: "#f59e0b",
+    SIGNIFICANT_CONCERNS: "#ef4444",
+  };
+
   const SUPPORT_LABEL = {
     ARTICLE_SUPPORTED: "Supported within article",
     PARTIALLY_ARTICLE_SUPPORTED: "Partially supported within article",
-    ATTRIBUTED: "Attributed to a source",
-    EVIDENCE_GAP: "Evidence not shown",
-    UNVERIFIED: "Not verifiable from the article",
-    INSUFFICIENT_EVIDENCE: "Insufficient evidence",
-    CONTRADICTED_IN_ARTICLE: "Contradicted within article",
-    MISLEADING_PRESENTATION: "Misleading presentation",
+    ATTRIBUTED: "Attributed reporting",
+    ALLEGATION_REPORTED: "Allegation reported, attributed",
+    UNSUPPORTED_WITHIN_ARTICLE: "Unsupported within article",
+    INTERNALLY_CONTRADICTED: "Contradicted within article",
+    UNCLEAR: "Unclear from the article",
   };
+
+  const ATTRIBUTION_LABEL = { CLEAR: "Clear", UNCLEAR: "Unclear", NONE: "None" };
 
   const EVIDENCE_LABEL = {
     PRIMARY_DOCUMENT: "Primary document",
@@ -34,56 +54,47 @@
     UNKNOWN: "Not stated",
   };
 
-  const ISSUE_LABEL = {
-    MISSING_CONTEXT: "Missing context",
-    UNSUPPORTED_ACCUSATION: "Unsupported accusation",
-    OUTDATED_INFORMATION: "Possibly outdated",
-    STATISTICAL_MISREPRESENTATION: "Statistics misrepresented",
-    HEADLINE_CONTENT_MISMATCH: "Headline does not match content",
-    UNATTRIBUTED_CLAIM: "Unattributed claim",
-    WEAK_SOURCE: "Weak source",
-    CONTRADICTORY_STATEMENTS: "Contradictory statements",
+  const CONCERN_LABEL = {
+    HEADLINE_CONTRADICTS_BODY: "Headline contradicts body",
+    INTERNAL_CONTRADICTION: "Internal contradiction",
+    NUMERICAL_INCONSISTENCY: "Numbers do not add up",
+    UNSUPPORTED_SERIOUS_ALLEGATION: "Serious allegation presented as fact",
+    SOURCE_CLAIM_MISMATCH: "Source does not support the claim",
+    CONCLUSION_CONFLICTS_WITH_EVIDENCE: "Conclusion conflicts with evidence",
+    INVALID_CITATION: "Invalid citation",
+    HEADLINE_OVERSTATEMENT: "Headline overstates the body",
+    AMBIGUOUS_ATTRIBUTION: "Ambiguous attribution",
+    MISLEADING_STATISTIC: "Questionable statistic",
+    MATERIAL_MISSING_CONTEXT: "Material context missing",
     OPINION_PRESENTED_AS_FACT: "Opinion presented as fact",
     SELECTIVE_EVIDENCE: "Selective evidence",
-    UNKNOWN_SOURCE: "Unknown source",
-    EXTERNAL_VERIFICATION_REQUIRED: "Needs external verification",
+    EXTRAORDINARY_CLAIM_UNSUPPORTED: "Extraordinary claim without support",
+    OUTDATED_INFORMATION: "Possibly outdated",
+    MISLEADING_FRAMING: "Potentially misleading framing",
   };
 
-  // Three buckets, chosen by priority: a claim with a problem is an issue
-  // even if it is also attributed; a claim needing verification is not
-  // "supported" even if partially backed.
-  const ISSUE_SUPPORT = new Set(["EVIDENCE_GAP", "INSUFFICIENT_EVIDENCE", "CONTRADICTED_IN_ARTICLE", "MISLEADING_PRESENTATION"]);
-  const VERIFY_SUPPORT = new Set(["ATTRIBUTED", "UNVERIFIED"]);
-  const SUPPORTED_SUPPORT = new Set(["ARTICLE_SUPPORTED", "PARTIALLY_ARTICLE_SUPPORTED"]);
+  const SIGNIFICANT = new Set([
+    "HEADLINE_CONTRADICTS_BODY", "INTERNAL_CONTRADICTION", "NUMERICAL_INCONSISTENCY", "UNSUPPORTED_SERIOUS_ALLEGATION",
+    "SOURCE_CLAIM_MISMATCH", "CONCLUSION_CONFLICTS_WITH_EVIDENCE", "INVALID_CITATION",
+  ]);
+  const CONTRADICTIONS = new Set(["HEADLINE_CONTRADICTS_BODY", "INTERNAL_CONTRADICTION", "NUMERICAL_INCONSISTENCY", "CONCLUSION_CONFLICTS_WITH_EVIDENCE"]);
 
-  const BUCKET = {
-    SUPPORTED: "supported", // green: supported within the article
-    VERIFY: "verify", // amber: needs external verification
-    ISSUE: "issue", // red: evidence or context issue
-  };
-  const BUCKET_LABEL = {
-    supported: "Supported within article",
-    verify: "Needs verification",
-    issue: "Evidence / context issue",
-  };
-  const BUCKET_COLOR = { supported: "#22c55e", verify: "#f59e0b", issue: "#ef4444" };
+  // Claim buckets. "ok" is the normal case: ordinary attributed or supported
+  // reporting with nothing wrong. Only claims that carry a concern are
+  // colored.
+  const BUCKET = { CONCERN: "concern", CAUTION: "caution", OK: "ok" };
+  const BUCKET_LABEL = { concern: "Significant concern", caution: "Concern", ok: "No concern" };
+  const BUCKET_COLOR = { concern: "#ef4444", caution: "#f59e0b", ok: "#22c55e" };
 
-  // Color for the article-support meter. Same thresholds as supportWord so
-  // the color and the wording never disagree. Driven by article support
-  // only; framing and confidence never change it.
-  function supportColor(score) {
-    if (score >= 0.75) return "#3b82f6";
-    if (score >= 0.5) return "#f59e0b";
-    if (score >= 0.25) return "#f97316";
-    return "#ef4444";
+  const severityOf = (code) => (SIGNIFICANT.has(code) ? "SIGNIFICANT" : "MODERATE");
+
+  function humanize(code) {
+    if (typeof code !== "string" || code === "") return "";
+    const s = code.toLowerCase().replace(/_/g, " ");
+    return s.charAt(0).toUpperCase() + s.slice(1);
   }
-
-  function supportWord(score) {
-    if (score >= 0.75) return "Well supported within article";
-    if (score >= 0.5) return "Partially supported within article";
-    if (score >= 0.25) return "Weakly supported within article";
-    return "Little support within article";
-  }
+  const pct = (n) => `${Math.round((Number(n) || 0) * 100)}%`;
+  const concernLabel = (code) => CONCERN_LABEL[code] || humanize(code);
 
   function confidenceWord(confidence) {
     if (confidence >= 0.7) return "high";
@@ -91,118 +102,128 @@
     return "low";
   }
 
-  function humanize(code) {
-    if (typeof code !== "string" || code === "") return "";
-    const s = code.toLowerCase().replace(/_/g, " ");
-    return s.charAt(0).toUpperCase() + s.slice(1);
+  // All concern codes that touch a claim: its own plus article-level ones
+  // that reference it.
+  function concernsFor(claim, result) {
+    const own = Array.isArray(claim.concerns) ? claim.concerns : [];
+    const referenced = (Array.isArray(result && result.concerns) ? result.concerns : [])
+      .filter((c) => Array.isArray(c.claim_ids) && c.claim_ids.includes(claim.id))
+      .map((c) => c.type);
+    return [...new Set([...own, ...referenced])];
   }
 
-  const pct = (n) => `${Math.round((Number(n) || 0) * 100)}%`;
-
-  function needsExternal(claim) {
-    const issues = Array.isArray(claim.issues) ? claim.issues : [];
-    return claim.external_verification_required === true || issues.includes("EXTERNAL_VERIFICATION_REQUIRED");
+  function bucketOf(claim, result) {
+    const codes = concernsFor(claim, result);
+    if (codes.some((c) => SIGNIFICANT.has(c)) || claim.support === "INTERNALLY_CONTRADICTED") return BUCKET.CONCERN;
+    if (codes.length > 0 || claim.support === "UNSUPPORTED_WITHIN_ARTICLE") return BUCKET.CAUTION;
+    return BUCKET.OK;
   }
 
-  function bucketOf(claim) {
-    const issues = Array.isArray(claim.issues) ? claim.issues : [];
-    const structural = issues.filter((i) => i !== "EXTERNAL_VERIFICATION_REQUIRED");
-    if (ISSUE_SUPPORT.has(claim.support) || structural.length > 0) return BUCKET.ISSUE;
-    if (VERIFY_SUPPORT.has(claim.support) || needsExternal(claim)) return BUCKET.VERIFY;
-    if (SUPPORTED_SUPPORT.has(claim.support)) return BUCKET.SUPPORTED;
-    return BUCKET.VERIFY;
-  }
-
-  // Short reason shown next to a claim in lists: the most specific thing
-  // wrong with it, or its support level.
-  function reasonOf(claim) {
-    const issues = (claim.issues || []).filter((i) => i !== "EXTERNAL_VERIFICATION_REQUIRED");
-    if (claim.type === "ALLEGATION" && bucketOf(claim) !== BUCKET.SUPPORTED) return "Allegation";
-    if (issues.length) return ISSUE_LABEL[issues[0]] || humanize(issues[0]);
-    if (claim.support === "ARTICLE_SUPPORTED" || claim.support === "PARTIALLY_ARTICLE_SUPPORTED") return SUPPORT_LABEL[claim.support];
-    if (needsExternal(claim) && VERIFY_SUPPORT.has(claim.support)) return "Needs external verification";
+  // Short reason next to a claim: the concern if any, else its status.
+  function reasonOf(claim, result) {
+    const codes = concernsFor(claim, result);
+    if (codes.length) return concernLabel(codes.sort((a, b) => (SIGNIFICANT.has(b) ? 1 : 0) - (SIGNIFICANT.has(a) ? 1 : 0))[0]);
     return SUPPORT_LABEL[claim.support] || humanize(claim.support);
   }
 
-  /** Counts for the summary counters and the banner. */
+  /** Status and its presentation. */
+  function status(result) {
+    const s = (result.assessment && result.assessment.status) || "NO_SIGNIFICANT_CONCERNS";
+    return { code: s, label: STATUS_LABEL[s] || humanize(s), meaning: STATUS_MEANING[s] || "", color: STATUS_COLOR[s] || "#9aa5b1" };
+  }
+
+  /** Every concern, article-level and claim-level, as one flat list. */
+  function allConcerns(result) {
+    const claims = Array.isArray(result.claims) ? result.claims : [];
+    const out = [];
+    for (const c of Array.isArray(result.concerns) ? result.concerns : []) {
+      out.push({ type: c.type, severity: c.severity || severityOf(c.type), label: concernLabel(c.type), note: c.note || "", claim_ids: c.claim_ids || [], claim: null });
+    }
+    for (const cl of claims) {
+      for (const code of Array.isArray(cl.concerns) ? cl.concerns : []) {
+        // Skip codes already listed at article level for this claim.
+        if (out.some((o) => o.type === code && o.claim_ids.includes(cl.id))) continue;
+        out.push({ type: code, severity: severityOf(code), label: concernLabel(code), note: cl.gap || "", claim_ids: [cl.id], claim: cl });
+      }
+    }
+    return out.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "SIGNIFICANT" ? -1 : 1));
+  }
+
+  /** Counters for the summary and the banner. */
   function counts(result) {
     const claims = Array.isArray(result.claims) ? result.claims : [];
-    const out = { total: claims.length, supported: 0, verify: 0, issue: 0, articleIssues: Array.isArray(result.issues) ? result.issues.length : 0 };
-    for (const c of claims) out[bucketOf(c)]++;
-    out.needsReview = out.verify + out.issue;
-    return out;
+    const concerns = allConcerns(result);
+    const significant = concerns.filter((c) => c.severity === "SIGNIFICANT").length;
+    const contradictions = concerns.filter((c) => CONTRADICTIONS.has(c.type)).length +
+      claims.filter((c) => c.support === "INTERNALLY_CONTRADICTED" && !concernsFor(c, result).some((x) => CONTRADICTIONS.has(x))).length;
+    return {
+      total: claims.length,
+      concerns: concerns.length,
+      significant,
+      observations: concerns.length - significant, // moderate concerns
+      contradictions,
+      ok: claims.filter((c) => bucketOf(c, result) === BUCKET.OK).length,
+      flagged: claims.filter((c) => bucketOf(c, result) !== BUCKET.OK).length,
+    };
+  }
+
+  /** Banner text: status, plus a count only when there is something to count. */
+  function bannerText(result) {
+    const s = status(result);
+    const n = counts(result);
+    if (s.code === "NO_SIGNIFICANT_CONCERNS") return { label: s.label, detail: "" };
+    if (s.code === "REVIEW_RECOMMENDED") return { label: s.label, detail: `${n.concerns} concern${n.concerns === 1 ? "" : "s"}` };
+    return { label: s.label, detail: `${n.concerns} issue${n.concerns === 1 ? "" : "s"}` };
   }
 
   /**
-   * Key findings for the summary panel: the few claims that matter most
-   * (issues first, then verification, then one or two supported ones),
-   * plus article-level issues. Max `limit` entries.
+   * Key findings for the summary: concerns first (significant before
+   * moderate), each with the claim text when it refers to one. When there
+   * are none, the caller shows the "no significant concerns" line.
    */
   function keyFindings(result, limit = 4) {
     const claims = Array.isArray(result.claims) ? result.claims : [];
-    const order = { issue: 0, verify: 1, supported: 2 };
-    const ranked = claims
-      .map((c, i) => ({ claim: c, bucket: bucketOf(c), i }))
-      .sort((a, b) => order[a.bucket] - order[b.bucket] || a.i - b.i);
-    const findings = [];
-    for (const r of ranked) {
-      if (findings.length >= limit) break;
-      // Keep at least one supported claim visible when there is room.
-      findings.push({ kind: r.bucket, label: reasonOf(r.claim), text: r.claim.text, claim: r.claim });
-    }
-    const hasSupported = findings.some((f) => f.kind === BUCKET.SUPPORTED);
-    const firstSupported = ranked.find((r) => r.bucket === BUCKET.SUPPORTED);
-    if (!hasSupported && firstSupported && findings.length >= limit) {
-      findings[limit - 1] = { kind: BUCKET.SUPPORTED, label: reasonOf(firstSupported.claim), text: firstSupported.claim.text, claim: firstSupported.claim };
-    }
-    for (const issue of Array.isArray(result.issues) ? result.issues : []) {
-      if (findings.length >= limit) break;
-      findings.push({ kind: BUCKET.ISSUE, label: ISSUE_LABEL[issue.type] || humanize(issue.type), text: issue.note || "", claim: null });
-    }
-    return findings;
+    return allConcerns(result).slice(0, limit).map((c) => {
+      const claim = c.claim || claims.find((cl) => c.claim_ids.includes(cl.id)) || null;
+      return { kind: c.severity === "SIGNIFICANT" ? BUCKET.CONCERN : BUCKET.CAUTION, label: c.label, text: claim ? claim.text : c.note, note: claim ? c.note : "", claim };
+    });
+  }
+
+  /** Observable sourcing characteristics; never reputation. */
+  function sourceTransparency(result, article) {
+    const st = result.source_transparency || {};
+    const claims = Array.isArray(result.claims) ? result.claims : [];
+    const attributedClaims = claims.filter((c) => c.attribution === "CLEAR").length;
+    const evidenceTypes = new Set(claims.map((c) => c.evidence_type));
+    const items = [];
+    const add = (present, label) => items.push({ present: Boolean(present), label });
+    add(article && article.author, "Named author");
+    add(article && article.published_at, "Publication date");
+    add(st.named_sources || attributedClaims > 0, "Named sources for important claims");
+    add(st.primary_references || evidenceTypes.has("PRIMARY_DOCUMENT") || evidenceTypes.has("OFFICIAL_RECORD"), "Primary references (advisories, filings, studies)");
+    add(st.direct_quotes || evidenceTypes.has("DIRECT_QUOTE"), "Direct quotations");
+    return { items, attributedClaims, total: claims.length };
   }
 
   /**
-   * Highlights: "Supported in article" vs "Needs review", the latter broken
-   * down by category. Replaces the old strengths/concerns wording, which
-   * read as verified-true / verified-false.
+   * Highlights for the Overview tab: what carries a concern vs. what is
+   * ordinary attributed or supported reporting.
    */
   function highlights(result) {
     const claims = Array.isArray(result.claims) ? result.claims : [];
-    const supported = [];
-    const review = [];
-    for (const c of claims) {
-      const bucket = bucketOf(c);
-      if (bucket === BUCKET.SUPPORTED) {
-        supported.push({ text: c.text, label: SUPPORT_LABEL[c.support], evidence: c.evidence, claim: c });
-      } else {
-        review.push({ text: c.text, category: reviewCategory(c), label: reasonOf(c), claim: c });
-      }
-    }
-    for (const issue of Array.isArray(result.issues) ? result.issues : []) {
-      review.push({ text: issue.note || "", category: ISSUE_LABEL[issue.type] || humanize(issue.type), label: ISSUE_LABEL[issue.type] || humanize(issue.type), claim: null });
-    }
-    return { supported, review };
-  }
-
-  function reviewCategory(claim) {
-    if (claim.type === "ALLEGATION") return "Allegation";
-    const issues = (claim.issues || []).filter((i) => i !== "EXTERNAL_VERIFICATION_REQUIRED");
-    if (issues.includes("WEAK_SOURCE") || issues.includes("UNKNOWN_SOURCE") || claim.evidence_type === "ANONYMOUS_SOURCE" || claim.evidence_type === "UNIDENTIFIED_REPORT") return "Weak source";
-    if (issues.includes("MISSING_CONTEXT") || issues.includes("SELECTIVE_EVIDENCE")) return "Missing context";
-    if (ISSUE_SUPPORT.has(claim.support) || issues.length) return "Evidence gap";
-    return "External verification required";
+    const concerns = allConcerns(result).map((c) => ({ text: c.claim ? c.claim.text : c.note, category: c.label, severity: c.severity, claim: c.claim }));
+    const ordinary = claims.filter((c) => bucketOf(c, result) === BUCKET.OK).map((c) => ({ text: c.text, label: SUPPORT_LABEL[c.support], claim: c }));
+    return { concerns, ordinary };
   }
 
   /**
-   * Side-by-side rows: claims where the article's support is thin, missing
-   * or invites an inference. Four columns, all textual observations.
+   * Side-by-side rows: only claims that carry a concern or a stated gap /
+   * inference. Ordinary reporting does not appear here.
    */
   function sideBySide(result) {
     const claims = Array.isArray(result.claims) ? result.claims : [];
-    const order = { issue: 0, verify: 1, supported: 2 };
     const rows = claims
-      .filter((c) => c.gap || c.inference || bucketOf(c) !== BUCKET.SUPPORTED)
+      .filter((c) => concernsFor(c, result).length || c.gap || c.inference)
       .map((c) => ({
         id: c.id,
         says: c.text,
@@ -212,9 +233,10 @@
         evidence: c.evidence || "",
         gap: c.gap || "",
         inference: c.inference || "",
-        bucket: bucketOf(c),
+        concerns: concernsFor(c, result),
+        bucket: bucketOf(c, result),
       }))
-      .sort((a, b) => order[a.bucket] - order[b.bucket]);
+      .sort((a, b) => (a.bucket === b.bucket ? 0 : a.bucket === BUCKET.CONCERN ? -1 : 1));
     return { rows, total: claims.length };
   }
 
@@ -230,13 +252,11 @@
 
   root.FactIt = Object.assign(root.FactIt || {}, {
     derive: {
-      SUPPORT_LABEL, EVIDENCE_LABEL, ISSUE_LABEL, BUCKET, BUCKET_LABEL, BUCKET_COLOR,
-      supportColor, supportWord, confidenceWord, humanize, pct,
-      bucketOf, reasonOf, counts, keyFindings, highlights, reviewCategory, sideBySide, evidenceProfile,
+      STATUS_LABEL, STATUS_MEANING, STATUS_COLOR, SUPPORT_LABEL, ATTRIBUTION_LABEL, EVIDENCE_LABEL, CONCERN_LABEL,
+      BUCKET, BUCKET_LABEL, BUCKET_COLOR,
+      humanize, pct, confidenceWord, concernLabel, severityOf,
+      concernsFor, bucketOf, reasonOf, status, allConcerns, counts, bannerText, keyFindings,
+      sourceTransparency, highlights, sideBySide, evidenceProfile,
     },
-    // Kept for the bar, which predates derive.
-    supportColor,
-    supportLabel: supportWord,
-    confidenceLabel: (c) => `${confidenceWord(c)} confidence`,
   });
 })(globalThis);

@@ -30,6 +30,39 @@ Schema Validation
    v                v
 Fact It Bar     Detail Panel
 
+## Analysis model (ADR-008)
+
+ARTICLE
+   |
+   v
+CLAIM EXTRACTION
+   |
+   +-----------------------+
+   |                       |
+   v                       v
+CLAIM CONSISTENCY      SOURCE TRANSPARENCY
+   |                       |
+   +-----------+-----------+
+               |
+               v
+       CONTENT ANALYSIS
+      (contradiction, attribution, headline, statistics, framing)
+               |
+               v
+        CONCERN ENGINE (validator derives the status from concerns)
+               |
+        +------+------+
+        |             |
+        v             v
+ No material      Material concerns
+ concerns         (moderate / significant)
+        |             |
+        v             v
+      GREEN       YELLOW / RED
+
+Parallel metadata: EXTERNAL VERIFICATION = NOT PERFORMED (V1). It never
+affects the concern level.
+
 ## content/
 
 Responsible for webpage interaction.

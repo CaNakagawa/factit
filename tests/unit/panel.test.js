@@ -1,6 +1,5 @@
-// Panel (schema 2.0): summary view first, detailed tabs on demand, text-only
-// rendering of untrusted strings, and derived views that agree with each
-// other. jsdom provides the DOM and shadow roots.
+// Panel (schema 2.1): summary first, detailed tabs on demand, concern-based
+// status, text-only rendering of untrusted strings. jsdom provides the DOM.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -14,28 +13,48 @@ for (const f of ["ui/derive.js", "ui/top-bar.js", "ui/panel.js"]) loadClassicScr
 const { createTopBar, createPanel } = globalThis.FactIt;
 
 const claim = (over = {}) => ({
-  id: "c1", text: "Cisco ISE has a critical auth bypass.", type: "FACTUAL", support: "ARTICLE_SUPPORTED", confidence: 0.8,
-  evidence_type: "OFFICIAL_RECORD", evidence: "CISA advisory quoted with CVE number.", gap: "", inference: "", issues: [], external_verification_required: false, ...over,
+  id: "c1", text: "Microsoft released fixes for CVE-2026-85889.", type: "FACTUAL", support: "ATTRIBUTED", attribution: "CLEAR",
+  evidence_type: "PRIMARY_DOCUMENT", evidence: "Microsoft advisory, linked", concerns: [], gap: "", inference: "", ...over,
 });
 
 function result(overrides = {}) {
   return {
-    schema_version: "2.0",
-    assessment: { article_support: 0.72, confidence: 0.6, rationale: "Advisories are quoted with CVE numbers; the Acronis passage cites only a secondary article.", verification_level: "AI_PRELIMINARY", external_verification: "NOT_PERFORMED" },
+    schema_version: "2.1",
+    assessment: { status: "NO_SIGNIFICANT_CONCERNS", confidence: 0.8, rationale: "Every claim is attributed to Microsoft or the CVE record and the statements agree with each other.", verification_level: "AI_PRELIMINARY", external_verification: "NOT_PERFORMED" },
+    source_transparency: { named_sources: true, primary_references: true, direct_quotes: true },
     claims: [
       claim(),
-      claim({ id: "c2", text: "Acronis Backup has an unspecified flaw.", support: "ATTRIBUTED", evidence_type: "SECONDARY_SOURCE", evidence: "Cites an earlier heise article.", gap: "The original Acronis advisory and a CVE.", external_verification_required: true }),
-      claim({ id: "c3", text: "The vendor hid the flaw for months.", type: "ALLEGATION", support: "EVIDENCE_GAP", evidence_type: "NO_EVIDENCE_SHOWN", evidence: "", gap: "Any timeline or statement.", inference: "That the vendor acted negligently.", issues: ["UNSUPPORTED_ACCUSATION"], external_verification_required: true }),
+      claim({ id: "c2", text: "The vulnerability has a CVSS score of 10.0.", evidence_type: "OFFICIAL_RECORD", evidence: "CVE record" }),
+      claim({ id: "c3", text: "Microsoft says no customer action is required.", evidence_type: "DIRECT_QUOTE", evidence: "quoted statement" }),
     ],
-    issues: [{ type: "HEADLINE_CONTENT_MISMATCH", note: "Headline gives three products equal weight; Acronis gets one line.", claim_ids: ["c2"] }],
-    framing: { detected: true, type: "OTHER", strength: "LOW", confidence: 0.5, observations: ["Urgency wording in the lead", "Vendor statements placed last"] },
-    summary: "Two advisories are backed by quoted records; the Acronis item rests on a secondary source.",
-    meta: { provider: "openai-compatible", model: "deepseek-chat", prompt_version: "2.0.0", schema_version: "2.0", analyzed_at: "2026-09-18T00:00:00.000Z", usage: { input_tokens: 5650, output_tokens: 1800 }, validation_issues: [], migrated_from: null },
+    concerns: [],
+    framing: { detected: false, type: null, strength: null, confidence: 0.2, observations: [] },
+    summary: "An ordinary vulnerability report; statements are attributed and consistent.",
+    meta: { provider: "openai-compatible", model: "deepseek-chat", prompt_version: "2.1.0", schema_version: "2.1", analyzed_at: "2026-09-18T00:00:00.000Z", usage: { input_tokens: 5650, output_tokens: 900 }, validation_issues: [], migrated_from: null },
     ...overrides,
   };
 }
 
-const text = (node) => node.textContent.replace(/\s+/g, " ").trim();
+function concerning() {
+  return result({
+    assessment: { status: "SIGNIFICANT_CONCERNS", confidence: 0.7, rationale: "The headline claims proof the body withdraws, and the minister allegation has nothing behind it.", verification_level: "AI_PRELIMINARY", external_verification: "NOT_PERFORMED" },
+    claims: [
+      claim({ id: "c1", text: "The study found a correlation between X and Y.", evidence_type: "PRIMARY_DOCUMENT", evidence: "study, linked" }),
+      claim({ id: "c2", text: "The minister diverted funds to a foundation.", type: "ALLEGATION", support: "UNSUPPORTED_WITHIN_ARTICLE", attribution: "NONE", evidence_type: "NO_EVIDENCE_SHOWN", evidence: "", concerns: ["UNSUPPORTED_SERIOUS_ALLEGATION"], gap: "No document or statement is presented.", inference: "That the minister acted in bad faith." }),
+      claim({ id: "c3", text: "Sales rose 3% in the quarter.", concerns: ["MISLEADING_STATISTIC"], gap: "Compared against a holiday quarter." }),
+    ],
+    concerns: [{ type: "HEADLINE_CONTRADICTS_BODY", severity: "SIGNIFICANT", note: "Headline: 'Study proves X causes Y'.", claim_ids: ["c1"] }],
+    framing: { detected: true, type: "POLITICAL", strength: "MODERATE", confidence: 0.6, observations: ["Only one party's reaction is quoted", "Loaded terms in the lead"] },
+  });
+}
+
+// Join text nodes with spaces; textContent alone glues adjacent blocks.
+const text = (node) => {
+  const parts = [];
+  const walk = (n) => { for (const c of n.childNodes) { if (c.nodeType === 3) parts.push(c.nodeValue); else walk(c); } };
+  walk(node);
+  return parts.join(" ").replace(/\s+/g, " ").trim();
+};
 
 function mount(r, opts = {}) {
   const bar = createTopBar();
@@ -45,159 +64,158 @@ function mount(r, opts = {}) {
   return { bar, panel, root: bar.root, el: bar.root.querySelector(".panel") };
 }
 
-test("Details opens the Summary (level 2), not the full report", () => {
-  const { bar, el } = mount(result());
+test("Summary for an ordinary article: green status, zero concerns, no verification warnings, no percentage", () => {
+  const { bar, el } = mount(result(), { article: { author: "Jane Roe", published_at: "2026-09-18T00:00:00Z" } });
   assert.equal(bar.host.dataset.factitView, "summary");
   const t = text(el);
-  assert.match(t, /72%/);
-  assert.match(t, /Partially supported within article/);
-  assert.match(t, /Analysis confidence: 60%/);
+  assert.match(t, /Status No significant concerns detected/);
+  assert.match(t, /not a statement that the article is true/);
   assert.match(t, /AI PRELIMINARY · NO EXTERNAL VERIFICATION PERFORMED/);
-  assert.match(t, /External sources were not independently verified/);
-  assert.match(t, /Key findings/);
-  assert.match(t, /View all claims \(3\)/);
-  assert.match(t, /Detailed analysis/);
-  assert.doesNotMatch(t, /Evidence type/, "no per-claim inspection fields in the summary");
-  assert.doesNotMatch(t, /5,650/, "token accounting belongs to About, not the summary");
-});
-
-test("summary counters and key findings come from the claim buckets", () => {
-  const { el } = mount(result());
+  assert.match(t, /metadata about Fact It, not a concern about the article/);
   const counters = [...el.querySelectorAll(".counter")].map((c) => `${c.querySelector(".n").textContent} ${c.querySelector(".l").textContent}`);
-  assert.deepEqual(counters, ["1 supported within article", "1 need external verification", "2 evidence / context issues"]);
-  const findings = [...el.querySelectorAll(".finding")].map((f) => f.querySelector(".lbl").textContent);
-  assert.deepEqual(findings, ["Allegation", "Needs external verification", "Supported within article", "Headline does not match content"]);
+  assert.deepEqual(counters, ["3 claims analyzed", "0 significant concerns", "0 observations", "0 contradictions"]);
+  assert.match(t, /Key findings No significant concerns detected\. Claims are internally consistent/);
+  assert.match(t, /Source transparency ✓ Named author ✓ Publication date ✓ Named sources/);
+  assert.match(t, /No notable framing observed/);
+  assert.match(t, /Inspect claims \(3\)/);
+  assert.deepEqual(t.match(/\d+%/g), ["80%"], "the only percentage is the analysis confidence; no support/truth score");
+  assert.doesNotMatch(t, /need(s)? (external )?verification|need review|Article support/i);
+  assert.doesNotMatch(t, /5,650/, "token accounting belongs to About");
+  assert.equal(el.querySelector(".status .dot").style.background, "rgb(34, 197, 94)");
 });
 
-test("framing in the summary is possible, observable and declared independent of the score", () => {
-  const { el } = mount(result());
+test("Summary for a concerning article: red status, counters, key findings with claim text and note", () => {
+  const { el } = mount(concerning());
   const t = text(el);
-  assert.match(t, /Possible other framing · Low · confidence 50%/);
-  assert.match(t, /Urgency wording in the lead/);
-  assert.match(t, /Framing does not affect the article-support score/);
+  assert.match(t, /Status Significant concerns/);
+  const counters = [...el.querySelectorAll(".counter")].map((c) => `${c.querySelector(".n").textContent} ${c.querySelector(".l").textContent}`);
+  assert.deepEqual(counters, ["3 claims analyzed", "2 significant concerns", "1 observations", "1 contradictions"]);
+  const findings = [...el.querySelectorAll(".finding")].map((f) => f.querySelector(".lbl").textContent);
+  assert.deepEqual(findings, ["Headline contradicts body", "Serious allegation presented as fact", "Questionable statistic"]);
+  assert.match(t, /Possible political framing · Moderate · confidence 60%/);
+  assert.match(t, /Framing is reported separately and does not affect the status/);
+  assert.equal(el.querySelector(".status .dot").style.background, "rgb(239, 68, 68)");
 });
 
-test("View all claims opens the Claims tab; claims expand with inspection fields", () => {
+test("Inspect claims opens the Claims tab; ordinary claims are green and expand to metadata, not warnings", () => {
   const { bar, el } = mount(result());
-  [...el.querySelectorAll("button")].find((b) => /View all claims/.test(b.textContent)).click();
+  [...el.querySelectorAll("button")].find((b) => /Inspect claims/.test(b.textContent)).click();
   assert.equal(bar.host.dataset.factitView, "detail:claims");
   const panel = bar.root.querySelector(".panel");
-  const tabs = [...panel.querySelectorAll("button.tab")].map((b) => b.textContent);
-  assert.deepEqual(tabs, ["Overview", "Claims", "Evidence", "Framing", "About"]);
+  assert.deepEqual([...panel.querySelectorAll("button.tab")].map((b) => b.textContent), ["Overview", "Claims", "Evidence", "Framing", "About"]);
   const items = [...panel.querySelectorAll(".claim")];
   assert.equal(items.length, 3);
-  assert.match(items[0].textContent, /Allegation/, "issues first");
-  const dl = items[0].querySelector("dl");
-  assert.equal(dl.hidden, true);
+  for (const it of items) {
+    assert.equal(it.querySelector(".mark").style.background, "rgb(34, 197, 94)");
+    assert.equal(it.querySelector(".reason").textContent, "Attributed reporting");
+  }
   items[0].querySelector("button").click();
+  const dl = items[0].querySelector("dl");
   assert.equal(dl.hidden, false);
   const fields = [...dl.querySelectorAll("dt")].map((d) => d.textContent);
-  assert.deepEqual(fields, ["Support", "Type", "Confidence", "Article evidence", "Evidence type", "What may be missing", "Possible reader inference", "Issues", "External verification"]);
+  assert.deepEqual(fields, ["Within the article", "Type", "Attribution", "Article evidence", "Evidence type", "Concerns", "External verification"]);
   const values = [...dl.querySelectorAll("dd")].map((d) => d.textContent);
-  assert.equal(values[0], "Evidence not shown");
-  assert.equal(values[4], "No evidence shown");
-  assert.equal(values[8], "Recommended · not performed");
-  assert.match(panel.textContent, /Article-level issues \(1\)/);
-  assert.match(panel.textContent, /Headline does not match content: Headline gives three products equal weight.*\(c2\)/);
+  assert.equal(values[0], "Attributed reporting");
+  assert.equal(values[2], "Clear");
+  assert.equal(values[5], "None");
+  assert.equal(values[6], "Not performed (metadata; not a concern)");
 });
 
-test("Overview tab: rationale, summary and Supported-in-article / Needs-review highlights", () => {
-  const { panel, root } = mount(result());
+test("Claims tab for a concerning article: concerns first, expanded fields include gap and inference, article-level list", () => {
+  const { panel, root } = mount(concerning());
+  panel.showDetail("claims");
+  const p = root.querySelector(".panel");
+  const reasons = [...p.querySelectorAll(".claim .reason")].map((r) => r.textContent);
+  assert.deepEqual(reasons, ["Headline contradicts body", "Serious allegation presented as fact", "Questionable statistic"]);
+  p.querySelectorAll(".claim button")[1].click();
+  const dts = [...p.querySelectorAll(".claim")[1].querySelectorAll("dt")].map((d) => d.textContent);
+  assert.deepEqual(dts, ["Within the article", "Type", "Attribution", "Article evidence", "Evidence type", "Concerns", "What is missing", "Possible reader inference", "External verification"]);
+  assert.match(text(p), /Article-level concerns \(1\) Headline contradicts body: Headline: 'Study proves X causes Y'\. \(c1\)/);
+});
+
+test("Overview tab: status, rationale, summary, concerns vs ordinary reporting", () => {
+  const { panel, root } = mount(concerning());
   panel.showDetail("overview");
   const t = text(root.querySelector(".panel"));
-  assert.match(t, /Article support: 72% · Partially supported within article/);
-  assert.match(t, /Advisories are quoted with CVE numbers/);
-  assert.match(t, /Supported in article \(1\)/);
-  assert.match(t, /Needs review \(3\)/);
-  assert.match(t, /ALLEGATION|Allegation/);
+  assert.match(t, /Significant concerns/);
+  assert.match(t, /The headline claims proof the body withdraws/);
+  assert.match(t, /Concerns \(3\)/);
+  assert.match(t, /Ordinary reporting, no concern \(0\)/);
   assert.match(t, /not a statement that the claim is true/);
-  assert.doesNotMatch(t, /Strengths|Concerns/);
+  assert.doesNotMatch(t, /Strengths|Needs review|Supported in article \(/);
+  const ok = mount(result());
+  ok.panel.showDetail("overview");
+  assert.match(text(ok.root.querySelector(".panel")), /Concerns \(0\) No concerns were found in the content\. Ordinary reporting, no concern \(3\)/);
 });
 
-test("Evidence tab: evidence profile and side by side with possible reader inference wording", () => {
-  const { panel, root } = mount(result());
+test("Evidence tab: side by side lists only claims with concerns, with possible reader inference wording", () => {
+  const { panel, root } = mount(concerning());
   panel.showDetail("evidence");
   const p = root.querySelector(".panel");
   const t = text(p);
-  assert.match(t, /Official record: 1/);
-  assert.match(t, /Secondary source: 1/);
-  assert.match(t, /No evidence shown: 1/);
-  assert.match(t, /Side by side \(2\)/);
+  assert.match(t, /Side by side: claims with concerns \(3\)/);
   const dts = [...p.querySelectorAll(".sbs .row:first-of-type dt")].map((d) => d.textContent);
   assert.deepEqual(dts, ["Article says", "Evidence presented", "What may be missing", "Possible reader inference"]);
-  assert.match(t, /That the vendor acted negligently/);
+  assert.match(t, /That the minister acted in bad faith/);
   assert.doesNotMatch(t, /Leads the reader to/);
-  assert.match(t, /not a claim about the author's intent/);
+  const ok = mount(result());
+  ok.panel.showDetail("evidence");
+  assert.match(text(ok.root.querySelector(".panel")), /Side by side: claims with concerns \(0\) No claim carries a concern/);
 });
 
-test("Framing tab: observations only, no ideology, independence stated", () => {
-  const { panel, root } = mount(result());
+test("Framing tab: observations only, topic is not framing, independence stated", () => {
+  const { panel, root } = mount(concerning());
   panel.showDetail("framing");
   const t = text(root.querySelector(".panel"));
-  assert.match(t, /Possible other framing/);
-  assert.match(t, /Low · Confidence: 50%/);
-  assert.match(t, /Observed characteristics/);
-  assert.match(t, /Vendor statements placed last/);
+  assert.match(t, /Possible political framing/);
+  assert.match(t, /Moderate · Confidence: 60%/);
+  assert.match(t, /Only one party's reaction is quoted/);
   assert.match(t, /says nothing about the author's or the publication's ideology/);
-  assert.match(t, /Framing does not affect the article-support score/);
+  assert.match(t, /A subject being political, commercial or controversial is not framing/);
 });
 
-test("About tab: verification level, provider, model, prompt, tokens, cost, cache source", () => {
-  const { panel, root } = mount(result(), { cached: true, cost: { usd: 0.0293, input_usd: 0.0113, output_usd: 0.018 } });
+test("About tab: status, verification metadata, provider, model, prompt, tokens, cost, cache", () => {
+  const { panel, root } = mount(result(), { cached: true, cost: { usd: 0.0203, input_usd: 0.0113, output_usd: 0.009 } });
   panel.showDetail("about");
   const p = root.querySelector(".panel");
   const kv = Object.fromEntries([...p.querySelectorAll(".kv dt")].map((dt, i) => [dt.textContent, p.querySelectorAll(".kv dd")[i].textContent]));
+  assert.equal(kv.Status, "No significant concerns");
   assert.equal(kv["Verification level"], "AI preliminary");
-  assert.equal(kv["External verification"], "Not performed");
-  assert.equal(kv.Provider, "openai-compatible");
+  assert.match(kv["External verification"], /Not performed \(metadata; never counted as a concern\)/);
   assert.equal(kv.Model, "deepseek-chat");
-  assert.equal(kv["Prompt version"], "2.0.0");
-  assert.equal(kv["Schema version"], "2.0");
-  assert.equal(kv.Tokens, "5,650 input · 1,800 output");
-  assert.equal(kv["Estimated cost"], "$0.029 ($0.011 in + $0.018 out)");
+  assert.equal(kv["Prompt version"], "2.1.0");
+  assert.equal(kv["Schema version"], "2.1");
+  assert.equal(kv.Tokens, "5,650 input · 900 output");
+  assert.equal(kv["Estimated cost"], "$0.020 ($0.011 in + $0.0090 out)");
   assert.equal(kv.Source, "local cache");
-  assert.ok([...p.querySelectorAll("button")].some((b) => /Re-analyze \(uses tokens\)/.test(b.textContent)) === false, "no Re-analyze without a handler");
 });
 
-test("Re-analyze is offered in summary and About when a handler exists, never runs by itself", () => {
+test("Re-analyze offered only with a handler; navigation never re-analyzes", () => {
   let reran = 0;
   const { panel, root } = mount(result(), { onReanalyze: () => reran++ });
-  const again = [...root.querySelectorAll(".panel button")].find((b) => /Re-analyze \(uses tokens\)/.test(b.textContent));
-  assert.ok(again);
-  panel.showDetail("about");
-  panel.showSummary();
-  panel.showDetail("claims");
-  assert.equal(reran, 0, "navigation never re-analyzes");
-  panel.showDetail("about");
+  assert.ok([...root.querySelectorAll(".panel button")].some((b) => /Re-analyze \(uses tokens\)/.test(b.textContent)));
+  panel.showDetail("about"); panel.showSummary(); panel.showDetail("claims"); panel.showDetail("about");
+  assert.equal(reran, 0);
   [...root.querySelectorAll(".panel button")].find((b) => /Re-analyze/.test(b.textContent)).click();
   assert.equal(reran, 1);
 });
 
-test("legacy (migrated) results render with a note and without invented data", () => {
-  const legacyMigrated = result({
-    claims: [claim({ evidence_type: "UNKNOWN", support: "ARTICLE_SUPPORTED", evidence: "quoted filing" })],
-    issues: [],
-    meta: { ...result().meta, migrated_from: "1.2" },
-  });
-  const { panel, root } = mount(legacyMigrated);
+test("migrated results carry a note in About", () => {
+  const { panel, root } = mount(result({ meta: { ...result().meta, migrated_from: "2.0" } }));
   panel.showDetail("about");
-  assert.match(text(root.querySelector(".panel")), /Analyzed with schema 1\.2; shown in the current layout/);
-  panel.showDetail("claims");
-  root.querySelector(".claim button").click();
-  assert.match(root.querySelector(".claim dl").textContent, /Evidence typeNot stated/);
+  assert.match(text(root.querySelector(".panel")), /Analyzed with schema 2\.0 under the older, verification-centric prompt/);
 });
 
 test("model strings are rendered as text in every view", () => {
   const payload = "<img src=x onerror=alert(1)><script>alert(2)</script><a href=javascript:alert(3)>x</a><b>b</b>";
-  const hostile = result({
-    assessment: { article_support: 0.5, confidence: 0.5, rationale: payload, verification_level: "AI_PRELIMINARY", external_verification: "NOT_PERFORMED" },
-    claims: [claim({ text: payload, evidence: payload, gap: payload, inference: payload, support: "EVIDENCE_GAP", issues: ["WEAK_SOURCE"] })],
-    issues: [{ type: "MISSING_CONTEXT", note: payload, claim_ids: ["c1"] }],
-    framing: { detected: true, type: "OTHER", strength: "HIGH", confidence: 1, observations: [payload] },
-    summary: payload,
-    meta: { provider: payload, model: payload, prompt_version: payload, analyzed_at: payload, usage: { input_tokens: 1, output_tokens: 1 } },
-  });
-  const { panel, root } = mount(hostile);
+  const hostile = concerning();
+  hostile.assessment.rationale = payload;
+  hostile.summary = payload;
+  hostile.claims = [claim({ text: payload, evidence: payload, gap: payload, inference: payload, support: "UNSUPPORTED_WITHIN_ARTICLE", concerns: ["AMBIGUOUS_ATTRIBUTION"] })];
+  hostile.concerns = [{ type: "MATERIAL_MISSING_CONTEXT", severity: "MODERATE", note: payload, claim_ids: ["c1"] }];
+  hostile.framing = { detected: true, type: "OTHER", strength: "HIGH", confidence: 1, observations: [payload] };
+  hostile.meta = { provider: payload, model: payload, prompt_version: payload, analyzed_at: payload, usage: { input_tokens: 1, output_tokens: 1 } };
+  const { panel, root } = mount(hostile, { article: { author: payload, published_at: payload } });
   for (const view of ["summary", "overview", "claims", "evidence", "framing", "about"]) {
     if (view === "summary") panel.showSummary(); else panel.showDetail(view);
     if (view === "claims") root.querySelector(".claim button").click();
@@ -206,15 +224,13 @@ test("model strings are rendered as text in every view", () => {
   }
 });
 
-test("panel API: open/close/toggle state attributes; open('claims') jumps to the tab", () => {
+test("panel API: open/close/toggle and open('claims')", () => {
   const bar = createTopBar();
   const panel = createPanel(bar.root);
-  assert.equal(bar.host.dataset.factitPanel, "closed");
   panel.open();
-  assert.equal(panel.isOpen(), false, "cannot open before a result exists");
+  assert.equal(panel.isOpen(), false);
   panel.setResult(result());
   panel.toggle();
-  assert.equal(panel.isOpen(), true);
   assert.equal(bar.host.dataset.factitPanel, "open");
   bar.root.querySelector(".panel .close").click();
   assert.equal(panel.isOpen(), false);

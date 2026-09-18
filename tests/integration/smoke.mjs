@@ -118,15 +118,18 @@ const check = (ok, label, detail = "") => {
 };
 
 const profileDir = mkdtempSync(join(tmpdir(), "factit-smoke-"));
+// Ordinary attributed reporting with no internal problem (ADR-008 case 1),
+// plus a hostile attempt to claim verification that the validator must ignore.
 const FAKE_ANALYSIS = {
-  assessment: { article_support: 0.6, confidence: 0.5, rationale: "The vote tally is reported from the session; the cost figure is only attributed.", verification_level: "EVIDENCE_VERIFIED", external_verification: "PERFORMED" },
+  assessment: { confidence: 0.8, rationale: "The vote is reported from the session record and the cost is attributed to the linked report; nothing conflicts.", verification_level: "EVIDENCE_VERIFIED", external_verification: "PERFORMED", status: "SIGNIFICANT_CONCERNS" },
+  source_transparency: { named_sources: true, primary_references: true, direct_quotes: true },
   claims: [
-    { id: "c1", text: "The city council voted 7-2 on Tuesday.", type: "FACTUAL", support: "ARTICLE_SUPPORTED", confidence: 0.8, evidence_type: "OFFICIAL_RECORD", evidence: "Vote reported from the session.", gap: "", inference: "", issues: [], external_verification_required: false },
-    { id: "c2", text: "The plan is expected to cost 2.4 billion dollars.", type: "FACTUAL", support: "ATTRIBUTED", confidence: 0.6, evidence_type: "SECONDARY_SOURCE", evidence: "Attributed to the council's published report.", gap: "The report's cost table.", inference: "", issues: ["EXTERNAL_VERIFICATION_REQUIRED"], external_verification_required: true },
+    { id: "c1", text: "The city council voted 7-2 on Tuesday.", type: "FACTUAL", support: "ARTICLE_SUPPORTED", attribution: "CLEAR", evidence_type: "OFFICIAL_RECORD", evidence: "session record", concerns: [], gap: "", inference: "" },
+    { id: "c2", text: "The plan is expected to cost 2.4 billion dollars.", type: "FACTUAL", support: "ATTRIBUTED", attribution: "CLEAR", evidence_type: "SECONDARY_SOURCE", evidence: "council report, linked", concerns: [], gap: "", inference: "" },
   ],
-  issues: [],
-  framing: { detected: false, type: null, strength: null, confidence: 0.2, observations: [] },
-  summary: "Preliminary: the vote is backed by the session record; the cost estimate rests on a linked report.",
+  concerns: [],
+  framing: { detected: true, type: "POLITICAL", strength: "LOW", confidence: 0.3, observations: [] },
+  summary: "An ordinary council report; the vote and the cost are attributed and consistent.",
 };
 
 // Serves the fixture article and a fake OpenAI-compatible endpoint.
@@ -298,7 +301,7 @@ try {
   const analyzed = { result: { result: { value: clicked ? { ok: true, clicked: true } : undefined } } };
   const resultLine = consoleText().find((l) => l.startsWith("[Fact It] analysis (AI_PRELIMINARY)"));
   check(
-    Boolean(analyzed.result.result.value) && Boolean(resultLine) && /article_support=0\.6 /.test(resultLine) && /claims=2 /.test(resultLine) && /fake-model/.test(resultLine),
+    Boolean(analyzed.result.result.value) && Boolean(resultLine) && /status=NO_SIGNIFICANT_CONCERNS /.test(resultLine) && /claims=2 /.test(resultLine) && /concerns=0 /.test(resultLine) && /framing=none/.test(resultLine) && /fake-model/.test(resultLine),
     "analysis round trip via Analyze click",
     resultLine || "no result line in console",
   );
@@ -337,7 +340,8 @@ try {
   const viewAfterDetails = await page.send("Runtime.evaluate", { expression: "document.getElementById('factit-bar-host')?.dataset.factitView", returnByValue: true });
   check(
     viewAfterDetails.result?.result?.value === "summary" && /AI PRELIMINARY · NO EXTERNAL VERIFICATION PERFORMED/.test(summaryText) &&
-      /Key findings/.test(summaryText) && /supported within article/.test(summaryText) && !/Evidence type/.test(summaryText),
+      /No significant concerns detected/.test(summaryText) && /Key findings/.test(summaryText) && /Source transparency/.test(summaryText) &&
+      /No notable framing observed/.test(summaryText) && !/Evidence type/.test(summaryText) && !/need(s)? (external )?verification/i.test(summaryText),
     "Details opens a concise Summary first", `view=${viewAfterDetails.result?.result?.value} chars=${summaryText.length}`,
   );
   if (process.env.FACTIT_SHOT) {
@@ -352,7 +356,7 @@ try {
   const viewAfterClaims = await page.send("Runtime.evaluate", { expression: "document.getElementById('factit-bar-host')?.dataset.factitView", returnByValue: true });
   check(
     viewAfterClaims.result?.result?.value === "detail:claims" && /Claims \(2\)/.test(panelText) && /The city council voted 7-2/.test(panelText) &&
-      /Needs external verification/.test(panelText) && /Supported within article/.test(panelText) && /Overview.*Claims.*Evidence.*Framing.*About/.test(panelText),
+      /Attributed reporting/.test(panelText) && /Supported within article/.test(panelText) && !/Needs external verification/.test(panelText) && /Overview.*Claims.*Evidence.*Framing.*About/.test(panelText),
     "Detailed analysis shows tabs and structured claims", `view=${viewAfterClaims.result?.result?.value}`,
   );
   const panelState = await page.send("Runtime.evaluate", { expression: "document.getElementById('factit-bar-host')?.dataset.factitPanel", returnByValue: true });
@@ -375,7 +379,7 @@ try {
   check(cachedState.result?.result?.value === "result" && providerCalls.length === callsBeforeReload,
     "reload shows cached result with zero provider calls", `state=${cachedState.result?.result?.value} calls=${providerCalls.length - callsBeforeReload}`);
   const barText = await shadowText(page, "bar");
-  check(/from cache/.test(barText) && /Article support: 60%/.test(barText) && /1 needs review/.test(barText), "bar marks the result as cached and shows the article-support signal", barText.slice(0, 140));
+  check(/No significant concerns/.test(barText) && /from cache/.test(barText) && !/%|need/.test(barText), "bar shows the concern status (no score, no verification demand) and the cache marker", barText.slice(0, 140));
 
   // Re-analyze from the panel: exactly one new call, result refreshed.
   await clickShadowButton(page, "Details");
