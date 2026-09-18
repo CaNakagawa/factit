@@ -72,6 +72,10 @@ Open the extension's **Options** (right-click the Fact It icon, or
 Click **Test connection** to confirm. The key is stored in your browser
 profile and never shown again; **Remove key** deletes it.
 
+Where to find keys, model names and base URLs for each provider
+(OpenAI, Anthropic, DeepSeek, Gemini, Mistral, xAI, Groq, OpenRouter,
+Moonshot, Ollama, LM Studio): [docs/PROVIDERS.md](docs/PROVIDERS.md).
+
 ## Costs
 
 Each **Analyze** or **Re-analyze** sends the article (up to ~10k
