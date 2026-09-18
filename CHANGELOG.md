@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.2.0 - 2026-09-18
+
+- Progressive disclosure: thin banner (article support %, N need
+  review) -> Summary panel (score, confidence, AI PRELIMINARY notice,
+  three counters, key findings, possible framing, actions) -> Detailed
+  analysis tabs (Overview, Claims, Evidence, Framing, About)
+- Schema 2.0 (claim-centric, ADR-007): within-article support levels,
+  evidence types, per-claim issue codes, possible reader inference,
+  observable framing characteristics; explicit
+  external_verification: NOT_PERFORMED
+- Prompt 2.0.0: each fact requested once; roughly half the output
+  tokens on the same article
+- Terminology: "Supported within article" everywhere; highlights are
+  "Supported in article" vs "Needs review" (allegation / weak source /
+  missing context / evidence gap / external verification required);
+  "possible reader inference" replaces "leads the reader to"
+- Cached 1.x results migrate on read and are marked; Re-analyze
+  offered
+- Token accounting, cost, provider/model/prompt metadata moved to the
+  About tab
+
 ## 1.1.0 - 2026-09-18
 
 - Panel: one-line rationale under the factual support label ("well

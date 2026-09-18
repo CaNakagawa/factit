@@ -1,10 +1,11 @@
-// Fact It - top bar (V0.8).
+// Fact It - top bar (schema 2.0).
 //
 // Thin indicator injected at the top of the page. Classic script running
 // in the content-script world; exposes FactIt.createTopBar.
 //
-// The primary indicator represents FACTUAL SUPPORT only (never political
-// or ideological neutrality, source popularity or community opinion).
+// The primary indicator represents ARTICLE SUPPORT only: how well the
+// article backs its own claims. Never political or ideological neutrality,
+// source popularity, community opinion, or truth.
 //
 // Security: everything lives in a closed shadow root so page CSS and
 // scripts cannot restyle or read it. All dynamic text - which comes from
@@ -14,30 +15,8 @@
   const HOST_ID = "factit-bar-host";
   const PRELIMINARY_LABEL = "AI preliminary · not externally verified";
 
-  // Thresholds on overall_factual_support (0..1). Wording is deliberately
-  // descriptive, not a verdict.
-  function supportLabel(score) {
-    if (score >= 0.75) return "Well supported";
-    if (score >= 0.5) return "Partially supported";
-    if (score >= 0.25) return "Weakly supported";
-    return "Insufficient support";
-  }
-
-  // Color follows the same thresholds as supportLabel, so the meter and the
-  // wording always agree: blue (well supported) -> amber -> orange -> red
-  // (insufficient). Driven by factual support only; never by framing.
-  function supportColor(score) {
-    if (score >= 0.75) return "#3b82f6";
-    if (score >= 0.5) return "#f59e0b";
-    if (score >= 0.25) return "#f97316";
-    return "#ef4444";
-  }
-
-  function confidenceLabel(confidence) {
-    if (confidence >= 0.7) return "high confidence";
-    if (confidence >= 0.4) return "moderate confidence";
-    return "low confidence";
-  }
+  // Wording, colors and buckets come from ui/derive.js (loaded first).
+  const derive = () => root.FactIt.derive;
 
   const STYLE = `
     :host { all: initial; }
@@ -146,27 +125,28 @@
        * @param {{ cached?: boolean }} [options]
        */
       setResult(result, options = {}) {
-        const support = Number(result.analysis.overall_factual_support) || 0;
-        const confidence = Number(result.analysis.confidence) || 0;
-        const claims = Array.isArray(result.claims) ? result.claims.length : 0;
-        const flags = Array.isArray(result.flags) ? result.flags.length : 0;
+        const d = derive();
+        const support = Number(result.assessment && result.assessment.article_support) || 0;
+        const n = d.counts(result);
+        const color = n.total === 0 ? "#9aa5b1" : d.supportColor(support);
 
-        const color = claims === 0 ? "#9aa5b1" : supportColor(support);
         const meter = el("span", "meter");
         const fill = el("span");
         fill.style.width = `${Math.round(support * 100)}%`;
         fill.style.background = color;
         meter.append(fill);
-        meter.title = `Factual support ${Math.round(support * 100)}%`;
+        meter.title = `${d.supportWord(support)} - how well the article backs its own claims; not a truth score`;
         const dot = el("span", "dot");
         dot.style.background = color;
 
-        const label = claims === 0
+        const label = n.total === 0
           ? "No verifiable claims found"
-          : `Factual support: ${supportLabel(support)}`;
-        let detail = claims === 0
-          ? confidenceLabel(confidence)
-          : `${confidenceLabel(confidence)} · ${claims} claim${claims === 1 ? "" : "s"} · ${flags} flag${flags === 1 ? "" : "s"}`;
+          : `Article support: ${Math.round(support * 100)}%`;
+        let detail = n.total === 0
+          ? `${d.confidenceWord(result.assessment.confidence)} confidence`
+          : n.needsReview > 0
+            ? `${n.needsReview} need${n.needsReview === 1 ? "s" : ""} review`
+            : "no claims need review";
         if (options.cached) detail = `from cache · ${detail}`;
 
         const nodes = [
@@ -203,5 +183,5 @@
     return api;
   }
 
-  root.FactIt = Object.assign(root.FactIt || {}, { createTopBar, supportLabel, supportColor, confidenceLabel });
+  root.FactIt = Object.assign(root.FactIt || {}, { createTopBar });
 })(globalThis);

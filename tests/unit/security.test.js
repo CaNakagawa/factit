@@ -17,7 +17,7 @@ import { sanitizeSettings } from "../../extension/storage/settings.js";
 const dom = new JSDOM("<!DOCTYPE html><html><head></head><body></body></html>", { url: "https://example.com/" });
 globalThis.document = dom.window.document;
 globalThis.HTMLElement = dom.window.HTMLElement;
-for (const f of ["utils/hash.js", "content/extractor.js", "content/normalize.js", "ui/top-bar.js", "ui/panel.js"]) {
+for (const f of ["utils/hash.js", "content/extractor.js", "content/normalize.js", "ui/derive.js", "ui/top-bar.js", "ui/panel.js"]) {
   loadClassicScript(new URL(`../../extension/${f}`, import.meta.url));
 }
 const { extractArticle, normalizeArticle, createTopBar, createPanel, MAX_DOM_NODES } = globalThis.FactIt;
@@ -125,7 +125,7 @@ test("prompt: JSON envelope survives every quoting trick in the article", () => 
 // ----------------------------------------------------- malformed LLM output
 
 test("model output: prototype pollution attempts do not touch Object.prototype", () => {
-  const evil = '{"__proto__":{"polluted":true},"constructor":{"prototype":{"polluted":true}},"analysis":{"overall_factual_support":1,"confidence":1},"claims":[],"flags":[],"framing":{"detected":false},"summary":"s"}';
+  const evil = '{"__proto__":{"polluted":true},"constructor":{"prototype":{"polluted":true}},"assessment":{"article_support":1,"confidence":1},"claims":[{"__proto__":{"x":1},"text":"t","support":"UNVERIFIED"}],"issues":[],"framing":{"detected":false},"summary":"s"}';
   const parsed = parseModelJson(evil);
   const r = validateAnalysis(parsed);
   assert.equal(r.ok, true);
@@ -135,13 +135,14 @@ test("model output: prototype pollution attempts do not touch Object.prototype",
 });
 
 test("model output: enormous arrays and strings are bounded quickly", () => {
-  const claims = Array.from({ length: 100000 }, (_, i) => ({ text: "c".repeat(5000) + i, classification: "FALSE", explanation: "e".repeat(5000) }));
+  const claims = Array.from({ length: 100000 }, (_, i) => ({ text: "c".repeat(5000) + i, support: "EVIDENCE_GAP", evidence: "e".repeat(5000), issues: Array.from({ length: 1000 }, () => "WEAK_SOURCE") }));
   const start = Date.now();
-  const r = validateAnalysis({ analysis: { overall_factual_support: 0.5, confidence: 0.5 }, claims, flags: claims, framing: { detected: false }, summary: "s".repeat(100000) });
+  const r = validateAnalysis({ assessment: { article_support: 0.5, confidence: 0.5 }, claims, issues: claims, framing: { detected: false }, summary: "s".repeat(100000) });
   assert.equal(r.ok, true);
-  assert.equal(r.value.claims.length, 20);
-  assert.equal(r.value.flags.length, 0, "claims are not valid flags");
-  assert.ok(r.value.summary.length <= 1201);
+  assert.equal(r.value.claims.length, 15);
+  assert.equal(r.value.issues.length, 0, "claims are not valid issues");
+  assert.equal(r.value.claims[0].issues.length, 1, "issue codes deduplicated");
+  assert.ok(r.value.summary.length <= 401);
   assert.ok(Date.now() - start < 3000);
 });
 
@@ -225,7 +226,7 @@ test("key leakage: analysis results and their meta never contain settings", asyn
   const provider = {
     id: "fake", model: "m",
     async complete() {
-      return { text: JSON.stringify({ analysis: { overall_factual_support: 0.5, confidence: 0.5 }, claims: [], flags: [], framing: { detected: false }, summary: "s" }), model: "m", provider: "fake", finish: "stop", usage: null };
+      return { text: JSON.stringify({ assessment: { article_support: 0.5, confidence: 0.5 }, claims: [], issues: [], framing: { detected: false }, summary: "s" }), model: "m", provider: "fake", finish: "stop", usage: null };
     },
   };
   const result = await analyzeArticle(articleDoc(), provider);
@@ -250,18 +251,23 @@ test("oversized article: the background refuses over-cap content and the prompt 
 test("XSS: every model-derived string in bar and panel is inert text", () => {
   const payload = "<img src=x onerror=alert(1)><script>alert(2)</script><a href=javascript:alert(3)>x</a>";
   const r = {
-    schema_version: "1.0",
-    analysis: { overall_factual_support: 0.5, confidence: 0.5, verification_level: "AI_PRELIMINARY" },
-    claims: [{ text: payload, type: "ALLEGATION", classification: "DISPUTED", confidence: 0.5, explanation: payload }],
-    flags: [{ type: "WEAK_SOURCE", explanation: payload }],
-    framing: { detected: true, type: "OTHER", strength: "LOW", confidence: 0.5, explanation: payload },
+    schema_version: "2.0",
+    assessment: { article_support: 0.5, confidence: 0.5, rationale: payload, verification_level: "AI_PRELIMINARY", external_verification: "NOT_PERFORMED" },
+    claims: [{ id: "c1", text: payload, type: "ALLEGATION", support: "CONTRADICTED_IN_ARTICLE", confidence: 0.5, evidence_type: "UNKNOWN", evidence: payload, gap: payload, inference: payload, issues: ["WEAK_SOURCE"], external_verification_required: true }],
+    issues: [{ type: "MISSING_CONTEXT", note: payload, claim_ids: ["c1"] }],
+    framing: { detected: true, type: "OTHER", strength: "LOW", confidence: 0.5, observations: [payload] },
     summary: payload,
-    meta: { provider: payload, model: payload, prompt_version: payload, analyzed_at: payload, validation_issues: [payload] },
+    meta: { provider: payload, model: payload, prompt_version: payload, analyzed_at: payload, validation_issues: [payload], usage: { input_tokens: 1, output_tokens: 1 } },
   };
   const bar = createTopBar();
   const panel = createPanel(bar.root);
   bar.setResult(r, { cached: true });
   panel.setResult(r, { cached: true, onReanalyze: () => {} });
+  for (const v of ["summary", "overview", "claims", "evidence", "framing", "about"]) {
+    if (v === "summary") panel.showSummary(); else panel.showDetail(v);
+    if (v === "claims") bar.root.querySelector(".claim button").click();
+    assert.equal(bar.root.querySelectorAll("img, script, a, iframe, object, embed, svg").length, 0, v);
+  }
   bar.setError({ kind: payload, message: payload });
   assert.equal(bar.root.querySelectorAll("img, script, a, iframe, object, embed, svg").length, 0);
   assert.ok(bar.root.querySelector(".panel").textContent.includes("<script>alert(2)</script>"), "shown literally");

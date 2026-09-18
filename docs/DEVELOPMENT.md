@@ -117,25 +117,24 @@ Fact It bar and analysis:
    full AnalysisResult (docs/ANALYSIS_SCHEMA.md).
 5. Errors show in the bar with **Retry**, or **Open settings** when the
    provider is not configured. ✕ hides the bar for this page load.
-6. After a result, click **Details** (or anywhere on the bar) to open
-   the panel. It opens compact: support with a one-line **rationale**
-   (why it is this well or poorly supported), confidence, the notice
-   that no external sources were consulted, the **Conclusion**, a
-   **Show highlights** button (green strengths: well-supported claims,
-   no flags, no framing; red concerns: flags, disputed / misleading /
-   false / insufficient claims, allegations, detected framing - all
-   derived from the result, no extra tokens), a **Show side by side**
-   button (left: what the article says with what it rests on -
-   evidence, attribution, opinion, assumption; right: what is missing
-   and what the passage leads the reader to conclude; only claims with
-   something to show, belief-based ones first), a
-   **Show detailed analysis** button, token usage for the request
-   (`N in · N out tokens · ≈ $x` when prices are set in settings,
-   otherwise a hint), and one line of provenance (model, provider,
-   prompt version, time, truncation / dropped-item notes). The button reveals claims (classification, allegation
-   marker, confidence, explanation), flags and framing, the latter in
-   its own section with the note that it does not affect factual
-   support. ✕ or Details closes the panel.
+6. After a result, click **Details** (or the bar). Level 2, the
+   **Summary**, opens first: article support % with its meaning,
+   analysis confidence, the AI PRELIMINARY notice (one place), three
+   counters, up to four key findings, possible framing with one
+   observation, and the actions **View all claims**, **Detailed
+   analysis**, **Re-analyze (uses tokens)**.
+7. **Detailed analysis** (level 3) has tabs: Overview (rationale,
+   summary, highlights "Supported in article" / "Needs review" with
+   categories), Claims (each expandable: support, type, confidence,
+   article evidence, evidence type, what may be missing, possible
+   reader inference, issues, external verification status; plus
+   article-level issues), Evidence (evidence-type profile and the
+   side-by-side rows: article says / evidence presented / what may be
+   missing / possible reader inference), Framing (observed
+   characteristics), About (verification level, provider, model,
+   prompt and schema versions, time, tokens, estimated cost, cache
+   source, migration note). All views derive from the same claim
+   records (ui/derive.js). ✕ or Details closes the panel.
 
 Analysis runs only when you click **Analyze** (ADR-006); nothing is
 sent to a provider on page load or on toolbar clicks. Once a page has a
@@ -159,7 +158,7 @@ Local cache:
 The bar and the panel live in one closed shadow root on
 `document.documentElement` (`#factit-bar-host`, `data-factit-state` =
 idle | loading | result | error | no-article, `data-factit-panel` =
-open | closed, `data-factit-details` = shown | hidden). Page CSS cannot restyle them and page scripts cannot
+open | closed, `data-factit-view` = summary | detail:<tab>). Page CSS cannot restyle them and page scripts cannot
 read them. All text is set via `textContent`; model output is never
 rendered as HTML.
 
@@ -215,7 +214,7 @@ npm run vendor
 
 SECURITY.md requires a documented reason for every permission.
 
-Current state (V1.0):
+Current state (1.2.0):
 
 | Manifest key         | Value                          | Reason |
 |----------------------|--------------------------------|--------|
@@ -242,8 +241,9 @@ extension/
   analysis/prompt.js             PROMPT_VERSION, buildPrompt(article)
   analysis/validator.js          parse + validate model output
   analysis/engine.js             analyzeArticle(article, provider)
+  ui/derive.js                   buckets, labels, counters, findings, side-by-side (pure)
   ui/top-bar.js                  Fact It bar (closed shadow root)
-  ui/panel.js                    expanded analysis panel (same root)
+  ui/panel.js                    summary + detailed tabs (same root)
   providers/provider.js          registry + createProvider (common interface)
   providers/common.js            ProviderError, redaction, HTTP round trip
   providers/openai.js            adapters (also anthropic.js,

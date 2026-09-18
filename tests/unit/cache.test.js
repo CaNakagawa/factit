@@ -23,11 +23,11 @@ const hash = (n) => n.toString(16).padStart(64, "0");
 
 function result(overrides = {}) {
   return {
-    schema_version: "1.1",
-    analysis: { overall_factual_support: 0.6, confidence: 0.5, verification_level: "AI_PRELIMINARY" },
-    claims: [{ text: "c", type: "FACTUAL", classification: "UNVERIFIED", confidence: 0.5, explanation: "" }],
-    flags: [],
-    framing: { detected: false, type: null, strength: null, confidence: 0, explanation: "" },
+    schema_version: "2.0",
+    assessment: { article_support: 0.6, confidence: 0.5, rationale: "", verification_level: "AI_PRELIMINARY", external_verification: "NOT_PERFORMED" },
+    claims: [{ id: "c1", text: "c", type: "FACTUAL", support: "UNVERIFIED", confidence: 0.5, evidence_type: "UNKNOWN", evidence: "", gap: "", inference: "", issues: [], external_verification_required: false }],
+    issues: [],
+    framing: { detected: false, type: null, strength: null, confidence: 0, observations: [] },
     summary: "s",
     meta: { provider: "fake", model: "m", prompt_version: "1.0.1", schema_version: "1.0", analyzed_at: "2026-09-17T12:00:00.000Z", content_hash: hash(1), truncated_input: false, finish: "stop", usage: null, validation_issues: [] },
     ...overrides,
@@ -50,7 +50,7 @@ test("miss, put, hit; article text is never stored", async () => {
   assert.equal(hit.cached_at, put.cached_at);
   assert.equal(hit.result.summary, "s");
   assert.equal(hit.result.meta.model, "m");
-  assert.equal(hit.result.analysis.verification_level, "AI_PRELIMINARY");
+  assert.equal(hit.result.assessment.verification_level, "AI_PRELIMINARY");
   assert.doesNotMatch(JSON.stringify(area.data), /"content":/);
   assert.deepEqual((await cache.stats()).count, 1);
 });
@@ -62,21 +62,34 @@ test("invalid hashes are rejected / ignored", async () => {
   await assert.rejects(cache.put("nope", result()), /Invalid content hash/);
 });
 
-test("schema 1.0 entries are still served, upgraded with default 1.1 fields", async () => {
+test("schema 1.x entries are still served, migrated to 2.0 and marked", async () => {
   const area = memoryArea();
   const cache = createAnalysisCache(area);
-  area.data["analysis:" + hash(9)] = { result: result({ schema_version: "1.0" }), cached_at: "2026-01-01T00:00:00.000Z" };
+  const legacy = {
+    schema_version: "1.2",
+    analysis: { overall_factual_support: 0.7, confidence: 0.6, verification_level: "AI_PRELIMINARY", rationale: "r" },
+    claims: [{ text: "t", type: "FACTUAL", classification: "SUPPORTED", confidence: 0.8, explanation: "quoted", basis: "EVIDENCE", missing_information: "", implied: "" }],
+    flags: [{ type: "MISSING_CONTEXT", explanation: "ctx" }],
+    framing: { detected: false, type: null, strength: null, confidence: 0.1, explanation: "" },
+    summary: "s",
+    meta: { provider: "p", model: "m", prompt_version: "1.2.0", analyzed_at: "2026-09-17T00:00:00.000Z" },
+  };
+  area.data["analysis:" + hash(9)] = { result: legacy, cached_at: "2026-09-17T00:00:00.000Z" };
   const hit = await cache.get(hash(9));
   assert.ok(hit);
-  assert.equal(hit.result.schema_version, "1.2");
-  assert.equal(hit.result.claims[0].basis, "UNKNOWN");
+  assert.equal(hit.result.schema_version, "2.0");
+  assert.equal(hit.result.claims[0].support, "ARTICLE_SUPPORTED");
+  assert.equal(hit.result.claims[0].evidence, "quoted");
+  assert.deepEqual(hit.result.issues, [{ type: "MISSING_CONTEXT", note: "ctx", claim_ids: [] }]);
+  assert.equal(hit.result.meta.migrated_from, "1.2");
+  assert.equal(hit.result.meta.model, "m");
 });
 
 test("corrupt or schema-mismatched entries are misses", async () => {
   const area = memoryArea();
   const cache = createAnalysisCache(area);
   area.data["analysis:" + hash(2)] = "garbage";
-  area.data["analysis:" + hash(3)] = { result: result({ schema_version: "2.0" }), cached_at: "x" };
+  area.data["analysis:" + hash(3)] = { result: result({ schema_version: "3.0" }), cached_at: "x" };
   area.data["analysis:" + hash(4)] = { result: { schema_version: "1.0", analysis: {} }, cached_at: "x" };
   assert.equal(await cache.get(hash(2)), null);
   assert.equal(await cache.get(hash(3)), null);
@@ -87,11 +100,12 @@ test("stored results are re-validated: verification level cannot be escalated fr
   const area = memoryArea();
   const cache = createAnalysisCache(area);
   const tampered = result();
-  tampered.analysis.verification_level = "EVIDENCE_VERIFIED";
+  tampered.assessment.verification_level = "EVIDENCE_VERIFIED";
+  tampered.assessment.external_verification = "PERFORMED";
   tampered.meta.provider = 42;
   area.data["analysis:" + hash(5)] = { result: tampered, cached_at: "2026-01-01T00:00:00.000Z" };
   const hit = await cache.get(hash(5));
-  assert.equal(hit.result.analysis.verification_level, "AI_PRELIMINARY");
+  assert.equal(hit.result.assessment.verification_level, "AI_PRELIMINARY");
   assert.equal(hit.result.meta.provider, "unknown");
 });
 

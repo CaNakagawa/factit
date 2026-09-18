@@ -2,7 +2,7 @@
 
 Prompt versioning is mandatory.
 
-Current version: 1.2.0 (`PROMPT_VERSION` in extension/analysis/prompt.js).
+Current version: 2.0.0 (`PROMPT_VERSION` in extension/analysis/prompt.js).
 Bump it on any wording change; cached results are keyed on it.
 
 ## Input Separation
@@ -66,8 +66,24 @@ level.
 
 Never confuse the two.
 
+## Token discipline (2.0.0)
+
+Every fact is requested once, on the claim: support, evidence type,
+evidence, gap, possible inference, issue codes, external-verification
+flag. There are no per-flag explanations, no separate strengths /
+concerns, no per-claim explanation next to the evidence, and the
+summary and rationale are short. The UI derives the banner, summary,
+highlights, side-by-side and detailed views from the same records.
+Fields are capped at ~25 words and the model is told not to repeat
+information across fields. On a synthetic 20-claim article this halves
+the output characters versus schema 1.2.
+
 ## Changelog
 
+- 2.0.0 - claim-centric schema 2.0: support levels that say "within
+  article", evidence types, per-claim issue codes, possible reader
+  inference (no intent), observable framing characteristics; terse
+  fields; removes explanation/flags prose.
 - 1.2.0 - analysis.rationale (why the support is what it is); every
   classification explained, including SUPPORTED claims (schema 1.2).
 - 1.1.0 - per claim: basis (evidence / attribution / opinion /

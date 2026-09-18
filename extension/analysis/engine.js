@@ -77,6 +77,7 @@ export async function analyzeArticle(articleDocument, provider, options = {}) {
       finish: completion.finish,
       usage: completion.usage,
       validation_issues: validated.issues,
+      migrated_from: null,
     },
   };
 }

@@ -198,3 +198,50 @@ has a result is not re-analyzed unless the user explicitly asks
 - Trigger from the settings page: awkward; the settings tab steals focus
   from the article.
 
+---
+
+## ADR-007 - Claim-centric analysis schema (2.0)
+
+### Context
+
+Schema 1.x asked the model for overlapping prose: a per-claim
+explanation, missing information and implied conclusion, a free-text
+explanation per flag, a rationale and a summary, plus framing prose.
+The UI then derived highlights and a side-by-side view from three
+overlapping fields. A 20-claim article produced ~4.7k output tokens,
+and "SUPPORTED" / "Strengths" read as if Fact It had verified truth.
+
+### Decision
+
+Each claim is one canonical record: `support` (within-article
+vocabulary), `evidence_type`, `evidence`, `gap`, `inference`, `issues`
+(codes), `external_verification_required`. Flags become codes on the
+claim; article-level issues reference claim ids. The assessment carries
+`article_support`, a short rationale and forced
+`verification_level` / `external_verification`. The UI
+(ui/derive.js) computes buckets, counters, key findings, highlights,
+side-by-side rows and evidence profiles from those records. Level 1
+(banner), level 2 (summary) and level 3 (detailed tabs) are views of the
+same data.
+
+Vocabulary: every "supported" label says "within article";
+`external_verification: NOT_PERFORMED` is explicit; "possible reader
+inference" replaces "leads the reader to"; framing is reported as
+observable characteristics.
+
+### Consequences
+
+- Output tokens roughly halve on the same article; input tokens are
+  unchanged.
+- Cached 1.x results are migrated on read (validator.migrateLegacy),
+  marked with `meta.migrated_from`; nothing is invented, and the About
+  tab offers Re-analyze.
+- A future Evidence Engine can attach verification to claim ids
+  without touching the UI's derivation layer.
+
+### Alternatives
+
+- Keep 1.x and trim caps: rejected; the duplication was structural.
+- Provider JSON/structured-output modes: orthogonal; still possible
+  later for models that emit invalid JSON.
+

@@ -20,12 +20,20 @@ you what deserves a second look.
    (bring your own key). Fact It runs no servers and never sees your
    key or your articles.
 3. The model's answer is validated against a strict schema and shown
-   in the bar: factual support, confidence, number of claims and
-   flags, always labelled *AI preliminary · not externally verified*.
-4. Click the bar for details: a short conclusion, **Highlights**
-   (strengths vs concerns), a **side-by-side** view of what the
-   article says versus what is missing or merely implied, and the
-   full list of claims, flags and framing.
+   in the bar: **article support** (how well the article backs its own
+   claims), how many claims need review, always labelled *AI
+   preliminary · not externally verified*.
+4. Click **Details** for the **Summary**: the score, analysis
+   confidence, the verification level, three counters (supported
+   within article / need external verification / evidence or context
+   issues), key findings and possible framing. From there, **Detailed
+   analysis** opens tabs: Overview (rationale, highlights: supported
+   in article vs needs review), Claims (each expandable: support,
+   evidence type, article evidence, what may be missing, possible
+   reader inference, issues, external verification status), Evidence
+   (evidence profile and side-by-side), Framing (observable
+   characteristics) and About (provider, model, prompt version, tokens,
+   cost).
 5. The result is cached locally by a hash of the article text, so
    revisiting the same article costs nothing. **Re-analyze** is always
    explicit.
@@ -78,10 +86,12 @@ per analysis and a running total in the settings page.
 
 ## Reading the result
 
-- **Factual support** is about how well the article's factual claims
-  are supported *within the article* - attribution, evidence, internal
-  consistency. It is **not** a truth verdict and it is **not** about
-  political, ideological or religious neutrality.
+- **Article support** is how well the article's factual claims are
+  supported *within the article* - attribution, evidence shown,
+  internal consistency. It is **not** a truth verdict and it is **not**
+  about political, ideological or religious neutrality. "Supported
+  within article" never means "verified": external verification is not
+  performed in this version.
 - **Framing** is assessed separately and never lowers factual support.
   A strongly framed article can be accurate; a neutral one can be
   wrong.

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Fact It",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Preliminary AI-assisted analysis of the article you are reading, with your own API key. Know what you're reading.",
   "minimum_chrome_version": "116",
   "icons": {
@@ -35,6 +35,7 @@
         "utils/hash.js",
         "content/extractor.js",
         "content/normalize.js",
+        "ui/derive.js",
         "ui/top-bar.js",
         "ui/panel.js",
         "content/content-script.js"

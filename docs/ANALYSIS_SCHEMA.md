@@ -1,42 +1,55 @@
 # Fact It - AnalysisResult
 
-Schema Version: 1.2
+Schema Version: 2.0 (claim-centric; see DECISIONS.md ADR-007)
 
 Produced by `analyzeArticle` (extension/analysis/engine.js) from the
 model's JSON after validation (extension/analysis/validator.js).
-Enumerations live in extension/analysis/schema.js.
+Enumerations live in extension/analysis/schema.js. Every view in the UI
+(banner, summary, highlights, side-by-side, detailed claims) is derived
+from the same claim records by extension/ui/derive.js; nothing is
+generated twice.
 
 ```
 {
-  "schema_version": "1.0",
-  "analysis": {
-    "overall_factual_support": 0.0,
+  "schema_version": "2.0",
+  "assessment": {
+    "article_support": 0.0,
     "confidence": 0.0,
+    "rationale": "",
     "verification_level": "AI_PRELIMINARY",
-    "rationale": ""
+    "external_verification": "NOT_PERFORMED"
   },
   "claims": [
     {
-      "text": "", "type": "FACTUAL", "classification": "UNVERIFIED", "confidence": 0.0, "explanation": "",
-      "basis": "UNKNOWN", "missing_information": "", "implied": ""
+      "id": "c1",
+      "text": "",
+      "type": "FACTUAL",
+      "support": "ATTRIBUTED",
+      "confidence": 0.0,
+      "evidence_type": "NAMED_SOURCE",
+      "evidence": "",
+      "gap": "",
+      "inference": "",
+      "issues": ["EXTERNAL_VERIFICATION_REQUIRED"],
+      "external_verification_required": true
     }
   ],
-  "flags": [
-    { "type": "MISSING_CONTEXT", "explanation": "" }
+  "issues": [
+    { "type": "HEADLINE_CONTENT_MISMATCH", "note": "", "claim_ids": ["c1"] }
   ],
   "framing": {
     "detected": false,
     "type": null,
     "strength": null,
     "confidence": 0.0,
-    "explanation": ""
+    "observations": []
   },
   "summary": "",
   "meta": {
-    "provider": "", "model": "", "prompt_version": "1.0.0", "schema_version": "1.0",
+    "provider": "", "model": "", "prompt_version": "2.0.0", "schema_version": "2.0",
     "analyzed_at": "<ISO 8601>", "content_hash": "<sha256>", "truncated_input": false,
     "finish": "stop", "usage": { "input_tokens": 0, "output_tokens": 0 } | null,
-    "validation_issues": []
+    "validation_issues": [], "migrated_from": null | "1.0" | "1.1" | "1.2"
   }
 }
 ```
@@ -46,106 +59,100 @@ Enumerations live in extension/analysis/schema.js.
 Everything except `meta` originates from the model and is UNTRUSTED
 until validated. The validator:
 
-- forces `schema_version` and `analysis.verification_level`; the model
-  cannot set them
-- clamps every number to [0, 1]
-- enforces every enumeration (case-insensitive match, otherwise the item
-  is dropped and noted in `meta.validation_issues`)
-- caps string lengths (claim text 300, explanations 600, summary 1200)
-- caps `claims` and `flags` at 20 each
-- drops unknown fields
+- forces `schema_version`, `assessment.verification_level` and
+  `assessment.external_verification`; the model cannot set them
+- assigns claim ids itself (`c1..cN`) and resolves the model's own ids
+  only to map `issues[].claim_ids`
+- clamps every number to [0, 1], enforces every enumeration (case-
+  insensitive; invalid items are dropped and noted in
+  `meta.validation_issues`), caps strings and lists, drops unknown
+  fields
 
-`meta` is added by the engine, never by the model.
+`meta` is added by the engine, never by the model. Strings are plain
+text; the UI renders them with `textContent`, never as HTML.
 
-Strings are plain text. The UI must render them as text, never as HTML.
+## Article support
 
-## Factual Support
-
-Schema 1.2 adds `analysis.rationale` (string, max 400): one or two
-plain sentences on why the support is this high or low, naming what in
-the article does the supporting or what is lacking. Empty when absent
-(older results).
-
-`overall_factual_support` represents factual support only: how well the
-article's factual claims are supported within the article.
-
-It must NOT include:
-
-- political neutrality
-- ideological neutrality
-- religious neutrality
-- community reputation
+`assessment.article_support` is how well the article supports its own
+factual claims: attribution, evidence shown, internal consistency. It
+is **not** a truth score and it must not reflect political, ideological
+or religious neutrality, or the source's reputation. `rationale` (max
+240 chars) says what does or does not back the claims.
 
 ## Verification level
 
-`AI_PRELIMINARY` is the only value the extension can produce. A future
-Evidence Engine would introduce a different value. The two must never
-be confused; the UI must always show the preliminary status.
+`AI_PRELIMINARY` with `external_verification: NOT_PERFORMED` is the only
+combination the extension can produce. A future Evidence Engine would
+introduce other values; the UI states the current level once in the
+summary and in the About tab.
 
 ## Claims
 
-`type`: `FACTUAL` | `ALLEGATION` (an accusation against a person or
-organization). Opinions are not claims; an opinion presented as fact
-becomes an `OPINION_PRESENTED_AS_FACT` flag.
-
-`classification`:
-
-SUPPORTED
-MOSTLY_SUPPORTED
-PARTIALLY_SUPPORTED
-UNVERIFIED
-DISPUTED
-MISLEADING
-MOSTLY_FALSE
-FALSE
-INSUFFICIENT_EVIDENCE
-
-`UNVERIFIED` and `INSUFFICIENT_EVIDENCE` are normal outcomes, not
-failures.
-
-Schema 1.1 adds, per claim:
-
-| Field | Values | Meaning |
+| Field | Values / limit | Meaning |
 |---|---|---|
-| `basis` | `EVIDENCE`, `ATTRIBUTION`, `OPINION`, `ASSUMPTION`, `UNKNOWN` | What the claim rests on within the article: evidence shown; attribution to a source without evidence; the author's or a subject's belief presented as a claim; an assumption or inference; not stated. |
-| `missing_information` | string, max 300 | What the article would need to provide to establish the claim; empty when nothing is missing. |
-| `implied` | string, max 300 | The conclusion the passage leads the reader to that its information does not establish; empty when none. |
+| `id` | `c1..c15` | Assigned by the validator. |
+| `text` | ≤ 240 chars | The claim, quoted or closely paraphrased. |
+| `type` | `FACTUAL`, `ALLEGATION` | Allegation = accusation against a person or organization. |
+| `support` | `ARTICLE_SUPPORTED`, `PARTIALLY_ARTICLE_SUPPORTED`, `ATTRIBUTED`, `EVIDENCE_GAP`, `UNVERIFIED`, `INSUFFICIENT_EVIDENCE`, `CONTRADICTED_IN_ARTICLE`, `MISLEADING_PRESENTATION` | How well the article backs it. "Supported" always means within the article. `UNVERIFIED` and `INSUFFICIENT_EVIDENCE` are normal outcomes. |
+| `confidence` | 0–1 | Model confidence in this record. |
+| `evidence_type` | `PRIMARY_DOCUMENT`, `OFFICIAL_RECORD`, `NAMED_SOURCE`, `DIRECT_QUOTE`, `SECONDARY_SOURCE`, `ANONYMOUS_SOURCE`, `UNIDENTIFIED_REPORT`, `ARTICLE_ASSERTION`, `NO_EVIDENCE_SHOWN`, `UNKNOWN` | The kind of support the article **presents**. Describes the article, not the truth. |
+| `evidence` | ≤ 160 chars | What the article presents for the claim. |
+| `gap` | ≤ 160 chars | What would be needed to establish it. |
+| `inference` | ≤ 160 chars | A *possible reader inference* the text invites but does not establish. A textual observation; never a claim about author intent or reader state. |
+| `issues` | ≤ 4 codes | Issue codes that apply to this claim (see below). |
+| `external_verification_required` | boolean | True when a reader should check outside the article; also set by the `EXTERNAL_VERIFICATION_REQUIRED` code. |
 
-Results stored with schema 1.0 are upgraded on read with
-`basis: "UNKNOWN"` and empty strings; the UI offers Re-analyze.
+UI labels: Supported within article · Partially supported within article ·
+Attributed to a source · Evidence not shown · Not verifiable from the
+article · Insufficient evidence · Contradicted within article ·
+Misleading presentation.
 
-## Flags
+Derived buckets (ui/derive.js), by priority: **issue** (support in
+EVIDENCE_GAP / INSUFFICIENT_EVIDENCE / CONTRADICTED_IN_ARTICLE /
+MISLEADING_PRESENTATION, or any structural issue code) → **verify**
+(ATTRIBUTED, UNVERIFIED, or external verification required) →
+**supported** (ARTICLE_SUPPORTED, PARTIALLY_ARTICLE_SUPPORTED). The
+banner's "N need review" is verify + issue.
 
-MISSING_CONTEXT
-UNSUPPORTED_ACCUSATION
-OUTDATED_INFORMATION
-STATISTICAL_MISREPRESENTATION
-HEADLINE_CONTENT_MISMATCH
-UNATTRIBUTED_CLAIM
-WEAK_SOURCE
-CONTRADICTORY_STATEMENTS
-OPINION_PRESENTED_AS_FACT
-SELECTIVE_EVIDENCE
-UNKNOWN_SOURCE
-EXTERNAL_VERIFICATION_REQUIRED
+## Issues
+
+Codes: MISSING_CONTEXT, UNSUPPORTED_ACCUSATION, OUTDATED_INFORMATION,
+STATISTICAL_MISREPRESENTATION, HEADLINE_CONTENT_MISMATCH,
+UNATTRIBUTED_CLAIM, WEAK_SOURCE, CONTRADICTORY_STATEMENTS,
+OPINION_PRESENTED_AS_FACT, SELECTIVE_EVIDENCE, UNKNOWN_SOURCE,
+EXTERNAL_VERIFICATION_REQUIRED.
+
+Claim-level issues live in `claims[].issues` (codes only; the claim's
+own fields carry the substance). `issues[]` (max 10) is for problems
+about the article as a whole, with a short `note` (≤ 160) and optional
+`claim_ids`.
 
 ## Framing
 
-Framing is independent from factuality. When `detected` is false,
-`type` and `strength` are null.
+Independent from article support and never affects it. When
+`detected`, `observations` (max 4 × 100 chars) list observable textual
+characteristics: source selection, ordering, emphasis, omitted
+counterarguments, loaded terminology, prominence of one interpretation.
+No inference about the author's or the publication's ideology.
 
-Types:
+Types: POLITICAL, IDEOLOGICAL, RELIGIOUS, COMMERCIAL, ACTIVIST, CULTURAL,
+OTHER. Strength: LOW, MODERATE, HIGH.
 
-POLITICAL
-IDEOLOGICAL
-RELIGIOUS
-COMMERCIAL
-ACTIVIST
-CULTURAL
-OTHER
+## Summary
 
-Strength:
+2–3 plain sentences, max 400 chars: what the article backs, what it
+does not, what is most worth checking.
 
-LOW
-MODERATE
-HIGH
+## Backward compatibility
+
+Results stored under schema 1.0–1.2 are migrated on read
+(`validator.migrateLegacy`): `classification` → `support`
+(SUPPORTED/MOSTLY_SUPPORTED → ARTICLE_SUPPORTED, PARTIALLY_SUPPORTED →
+PARTIALLY_ARTICLE_SUPPORTED, DISPUTED/FALSE/MOSTLY_FALSE →
+CONTRADICTED_IN_ARTICLE, MISLEADING → MISLEADING_PRESENTATION),
+`explanation` → `evidence`, `missing_information` → `gap`, `implied` →
+`inference`, `basis` → `evidence_type` (OPINION → ARTICLE_ASSERTION,
+ASSUMPTION → NO_EVIDENCE_SHOWN, otherwise UNKNOWN), `flags` →
+article-level `issues`, framing `explanation` → one observation.
+`meta.migrated_from` records the source version and the About tab
+offers Re-analyze. Nothing is invented during migration.

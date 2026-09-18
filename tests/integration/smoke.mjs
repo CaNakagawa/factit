@@ -82,6 +82,7 @@ async function clickShadowButton(page, text) {
   walk(tree.result.root);
   // First match that is actually rendered (hidden buttons have no box model).
   for (const button of matches) {
+    await page.send("DOM.scrollIntoViewIfNeeded", { nodeId: button.nodeId });
     const box = await page.send("DOM.getBoxModel", { nodeId: button.nodeId });
     if (!box.result || !box.result.model) continue;
     const q = box.result.model.content;
@@ -118,11 +119,14 @@ const check = (ok, label, detail = "") => {
 
 const profileDir = mkdtempSync(join(tmpdir(), "factit-smoke-"));
 const FAKE_ANALYSIS = {
-  analysis: { overall_factual_support: 0.6, confidence: 0.5, verification_level: "EVIDENCE_VERIFIED" },
-  claims: [{ text: "The city council voted 7-2 on Tuesday.", type: "FACTUAL", classification: "UNVERIFIED", confidence: 0.5, explanation: "No source in the article." }],
-  flags: [{ type: "EXTERNAL_VERIFICATION_REQUIRED", explanation: "Check the cost figure." }],
-  framing: { detected: false, type: null, strength: null, confidence: 0.2, explanation: "" },
-  summary: "Preliminary: two central claims, one attributed.",
+  assessment: { article_support: 0.6, confidence: 0.5, rationale: "The vote tally is reported from the session; the cost figure is only attributed.", verification_level: "EVIDENCE_VERIFIED", external_verification: "PERFORMED" },
+  claims: [
+    { id: "c1", text: "The city council voted 7-2 on Tuesday.", type: "FACTUAL", support: "ARTICLE_SUPPORTED", confidence: 0.8, evidence_type: "OFFICIAL_RECORD", evidence: "Vote reported from the session.", gap: "", inference: "", issues: [], external_verification_required: false },
+    { id: "c2", text: "The plan is expected to cost 2.4 billion dollars.", type: "FACTUAL", support: "ATTRIBUTED", confidence: 0.6, evidence_type: "SECONDARY_SOURCE", evidence: "Attributed to the council's published report.", gap: "The report's cost table.", inference: "", issues: ["EXTERNAL_VERIFICATION_REQUIRED"], external_verification_required: true },
+  ],
+  issues: [],
+  framing: { detected: false, type: null, strength: null, confidence: 0.2, observations: [] },
+  summary: "Preliminary: the vote is backed by the session record; the cost estimate rests on a linked report.",
 };
 
 // Serves the fixture article and a fake OpenAI-compatible endpoint.
@@ -294,7 +298,7 @@ try {
   const analyzed = { result: { result: { value: clicked ? { ok: true, clicked: true } : undefined } } };
   const resultLine = consoleText().find((l) => l.startsWith("[Fact It] analysis (AI_PRELIMINARY)"));
   check(
-    Boolean(analyzed.result.result.value) && Boolean(resultLine) && /support=0\.6 /.test(resultLine) && /claims=1 /.test(resultLine) && /fake-model/.test(resultLine),
+    Boolean(analyzed.result.result.value) && Boolean(resultLine) && /article_support=0\.6 /.test(resultLine) && /claims=2 /.test(resultLine) && /fake-model/.test(resultLine),
     "analysis round trip via Analyze click",
     resultLine || "no result line in console",
   );
@@ -325,17 +329,37 @@ try {
   });
   check(barAfter.result?.result?.value?.state === "result" && barAfter.result?.result?.value?.shadow === true, "bar shows result in a closed shadow root", JSON.stringify(barAfter.result?.result?.value));
 
-  // 9. Real click on "Details" inside the closed shadow root, then read the panel.
+  // 9. Real click on "Details": the Summary opens first (level 2), then a
+  // real click on "Detailed analysis" shows the tabs (level 3).
   const detailsButton = await clickShadowButton(page, "Details");
   await sleep(200);
-  const panelText = detailsButton ? await shadowText(page, "panel") : "";
+  const summaryText = detailsButton ? await shadowText(page, "panel") : "";
+  const viewAfterDetails = await page.send("Runtime.evaluate", { expression: "document.getElementById('factit-bar-host')?.dataset.factitView", returnByValue: true });
+  check(
+    viewAfterDetails.result?.result?.value === "summary" && /AI PRELIMINARY · NO EXTERNAL VERIFICATION PERFORMED/.test(summaryText) &&
+      /Key findings/.test(summaryText) && /supported within article/.test(summaryText) && !/Evidence type/.test(summaryText),
+    "Details opens a concise Summary first", `view=${viewAfterDetails.result?.result?.value} chars=${summaryText.length}`,
+  );
+  if (process.env.FACTIT_SHOT) {
+    const shot = await page.send("Page.captureScreenshot", { format: "png" });
+    (await import("node:fs")).writeFileSync(process.env.FACTIT_SHOT.replace(/\.png$/, "-summary.png"), Buffer.from(shot.result.data, "base64"));
+  }
+  const detailed = await clickShadowButton(page, "Detailed analysis");
+  await sleep(200);
+  const claimsTab = detailed && await clickShadowButton(page, "Claims");
+  await sleep(200);
+  const panelText = claimsTab ? await shadowText(page, "panel") : "";
+  const viewAfterClaims = await page.send("Runtime.evaluate", { expression: "document.getElementById('factit-bar-host')?.dataset.factitView", returnByValue: true });
+  check(
+    viewAfterClaims.result?.result?.value === "detail:claims" && /Claims \(2\)/.test(panelText) && /The city council voted 7-2/.test(panelText) &&
+      /Needs external verification/.test(panelText) && /Supported within article/.test(panelText) && /Overview.*Claims.*Evidence.*Framing.*About/.test(panelText),
+    "Detailed analysis shows tabs and structured claims", `view=${viewAfterClaims.result?.result?.value}`,
+  );
   const panelState = await page.send("Runtime.evaluate", { expression: "document.getElementById('factit-bar-host')?.dataset.factitPanel", returnByValue: true });
   check(
-    Boolean(detailsButton) && panelState.result?.result?.value === "open" &&
-      /Claims \(1\)/.test(panelText) && /The city council voted 7-2/.test(panelText) && /Framing/.test(panelText) &&
-      /fake-model/.test(panelText) && /not externally verified/.test(panelText),
-    "Details click opens the panel with claims, framing and provider info",
-    detailsButton ? `panel=${panelState.result?.result?.value} chars=${panelText.length}` : "Details button not found",
+    Boolean(detailsButton) && panelState.result?.result?.value === "open",
+    "panel is open in a closed shadow root after the clicks",
+    detailsButton ? `panel=${panelState.result?.result?.value}` : "Details button not found",
   );
   if (process.env.FACTIT_SHOT) {
     const shot = await page.send("Page.captureScreenshot", { format: "png" });
@@ -351,7 +375,7 @@ try {
   check(cachedState.result?.result?.value === "result" && providerCalls.length === callsBeforeReload,
     "reload shows cached result with zero provider calls", `state=${cachedState.result?.result?.value} calls=${providerCalls.length - callsBeforeReload}`);
   const barText = await shadowText(page, "bar");
-  check(/from cache/.test(barText), "bar marks the result as cached", barText.slice(0, 120));
+  check(/from cache/.test(barText) && /Article support: 60%/.test(barText) && /1 needs review/.test(barText), "bar marks the result as cached and shows the article-support signal", barText.slice(0, 140));
 
   // Re-analyze from the panel: exactly one new call, result refreshed.
   await clickShadowButton(page, "Details");

@@ -119,7 +119,7 @@
       if (reply && reply.ok) {
         const r = reply.result;
         console.log(
-          `[Fact It] analysis (${r.analysis.verification_level}${reply.cached ? ", cached" : ""}) support=${r.analysis.overall_factual_support} confidence=${r.analysis.confidence} claims=${r.claims.length} flags=${r.flags.length} framing=${r.framing.detected ? r.framing.type + "/" + r.framing.strength : "none"} via ${r.meta.provider}/${r.meta.model}`,
+          `[Fact It] analysis (${r.assessment.verification_level}${reply.cached ? ", cached" : ""}) article_support=${r.assessment.article_support} confidence=${r.assessment.confidence} claims=${r.claims.length} issues=${r.issues.length} framing=${r.framing.detected ? r.framing.type + "/" + r.framing.strength : "none"} via ${r.meta.provider}/${r.meta.model}`,
         );
         console.log("[Fact It] analysis result:", r);
         showResult(r, Boolean(reply.cached), reply.cost);

@@ -1,18 +1,22 @@
-// Fact It - AnalysisResult validation (V0.5).
+// Fact It - AnalysisResult validation (schema 2.0).
 //
 // LLM output is UNTRUSTED. This module turns whatever text the model
 // returned into either a schema-conformant AnalysisResult or a clear
-// failure. It never trusts the model to set verification_level or
-// schema_version, clamps every number, caps every string and drops items
-// it cannot validate (recording why).
+// failure. It never trusts the model to set verification_level,
+// external_verification or schema_version, clamps every number, caps every
+// string and drops items it cannot validate (recording why).
+//
+// It also migrates results written under schema 1.x (still in the local
+// cache) into the 2.0 shape, so one renderer serves everything.
 
 import {
   ANALYSIS_SCHEMA_VERSION,
   VERIFICATION_LEVEL,
+  EXTERNAL_VERIFICATION,
   CLAIM_TYPES,
-  CLAIM_BASES,
-  CLAIM_CLASSIFICATIONS,
-  FLAG_TYPES,
+  SUPPORT_LEVELS,
+  EVIDENCE_TYPES,
+  ISSUE_TYPES,
   FRAMING_TYPES,
   FRAMING_STRENGTHS,
   LIMITS,
@@ -43,7 +47,6 @@ export function parseModelJson(text) {
 
   // Scan for balanced top-level objects (string- and escape-aware) so
   // trailing prose, stray braces or a second object cannot break parsing.
-  // The first candidate that parses wins.
   for (let start = s.indexOf("{"); start !== -1; start = s.indexOf("{", start + 1)) {
     let depth = 0;
     let inString = false;
@@ -63,7 +66,7 @@ export function parseModelJson(text) {
         if (depth === 0) {
           const parsed = attempt(s.slice(start, i + 1));
           if (parsed) return parsed;
-          break; // this candidate is unbalanced/invalid; try the next "{"
+          break;
         }
       }
     }
@@ -89,68 +92,167 @@ function oneOf(value, allowed) {
     : null;
 }
 
+function codes(value, allowed, max) {
+  if (!Array.isArray(value)) return [];
+  const out = [];
+  for (const v of value) {
+    const code = oneOf(v, allowed);
+    if (code && !out.includes(code)) out.push(code);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+// ------------------------------------------------------------ migration
+
+const LEGACY_SUPPORT = {
+  SUPPORTED: "ARTICLE_SUPPORTED",
+  MOSTLY_SUPPORTED: "ARTICLE_SUPPORTED",
+  PARTIALLY_SUPPORTED: "PARTIALLY_ARTICLE_SUPPORTED",
+  UNVERIFIED: "UNVERIFIED",
+  DISPUTED: "CONTRADICTED_IN_ARTICLE",
+  MISLEADING: "MISLEADING_PRESENTATION",
+  MOSTLY_FALSE: "CONTRADICTED_IN_ARTICLE",
+  FALSE: "CONTRADICTED_IN_ARTICLE",
+  INSUFFICIENT_EVIDENCE: "INSUFFICIENT_EVIDENCE",
+};
+
+const LEGACY_BASIS_TO_EVIDENCE = {
+  EVIDENCE: "UNKNOWN",
+  ATTRIBUTION: "SECONDARY_SOURCE",
+  OPINION: "ARTICLE_ASSERTION",
+  ASSUMPTION: "NO_EVIDENCE_SHOWN",
+  UNKNOWN: "UNKNOWN",
+};
+
 /**
- * @param {object|null} raw parsed model output
+ * Convert a schema 1.x result (as stored) into the raw 2.0 shape that
+ * validateAnalysis accepts. Free-text explanations become `evidence`
+ * (what the model said backs or fails to back the claim); flags become
+ * article-level issues. Nothing is invented.
+ */
+export function migrateLegacy(raw) {
+  if (!raw || typeof raw !== "object") return raw;
+  if (raw.assessment || !raw.analysis) return raw; // already 2.0 (or unrecognizable)
+  const a = raw.analysis || {};
+  const claims = (Array.isArray(raw.claims) ? raw.claims : []).map((c, i) => ({
+    id: `c${i + 1}`,
+    text: c && c.text,
+    type: c && c.type,
+    support: c && LEGACY_SUPPORT[String(c.classification || "").toUpperCase()],
+    confidence: c && c.confidence,
+    evidence_type: c && (LEGACY_BASIS_TO_EVIDENCE[String(c.basis || "UNKNOWN").toUpperCase()] || "UNKNOWN"),
+    evidence: c && c.explanation,
+    gap: c && c.missing_information,
+    inference: c && c.implied,
+    issues: [],
+    external_verification_required: false,
+  }));
+  const issues = (Array.isArray(raw.flags) ? raw.flags : []).map((f) => ({
+    type: f && f.type,
+    note: f && f.explanation,
+    claim_ids: [],
+  }));
+  const fr = raw.framing || {};
+  return {
+    assessment: { article_support: a.overall_factual_support, confidence: a.confidence, rationale: a.rationale },
+    claims,
+    issues,
+    framing: {
+      detected: fr.detected,
+      type: fr.type,
+      strength: fr.strength,
+      confidence: fr.confidence,
+      observations: fr.explanation ? [fr.explanation] : [],
+    },
+    summary: raw.summary,
+    __migrated_from: typeof raw.schema_version === "string" ? raw.schema_version : "1.x",
+  };
+}
+
+// ------------------------------------------------------------ validation
+
+/**
+ * @param {object|null} raw parsed model output (2.0) or a migrated 1.x result
  * @returns {{ ok: true, value: object, issues: string[] } | { ok: false, errors: string[] }}
  */
 export function validateAnalysis(raw) {
   const errors = [];
-  const issues = [];
+  const notes = [];
   if (!raw || typeof raw !== "object") return { ok: false, errors: ["output is not a JSON object"] };
+  if (!raw.assessment && raw.analysis) raw = migrateLegacy(raw);
 
-  // analysis
-  const a = raw.analysis && typeof raw.analysis === "object" ? raw.analysis : null;
-  if (!a) errors.push("missing analysis object");
-  const analysis = {
-    overall_factual_support: clamp01(a && a.overall_factual_support),
+  // assessment
+  const a = raw.assessment && typeof raw.assessment === "object" ? raw.assessment : null;
+  if (!a) errors.push("missing assessment object");
+  if (a && !Number.isFinite(Number(a.article_support))) errors.push("assessment.article_support is not a number");
+  if (a && !Number.isFinite(Number(a.confidence))) errors.push("assessment.confidence is not a number");
+  const assessment = {
+    article_support: clamp01(a && a.article_support),
     confidence: clamp01(a && a.confidence),
+    rationale: str(a && a.rationale, LIMITS.MAX_RATIONALE_CHARS),
     verification_level: VERIFICATION_LEVEL, // never taken from the model
-    rationale: str(a && a.rationale, LIMITS.MAX_RATIONALE_CHARS), // schema 1.2; "" when absent
+    external_verification: EXTERNAL_VERIFICATION, // never taken from the model
   };
-  if (a && !Number.isFinite(Number(a.overall_factual_support))) errors.push("analysis.overall_factual_support is not a number");
-  if (a && !Number.isFinite(Number(a.confidence))) errors.push("analysis.confidence is not a number");
 
   // claims
   const claims = [];
+  const seenIds = new Set();
   if (!Array.isArray(raw.claims)) {
     errors.push("claims is not an array");
   } else {
     raw.claims.forEach((c, i) => {
       if (claims.length >= LIMITS.MAX_CLAIMS) return;
       const text = c && str(c.text, LIMITS.MAX_CLAIM_TEXT_CHARS);
-      const classification = c && oneOf(c.classification, CLAIM_CLASSIFICATIONS);
-      if (!text || !classification) {
-        issues.push(`claim ${i} dropped: missing text or invalid classification`);
+      const support = c && oneOf(c.support, SUPPORT_LEVELS);
+      if (!text || !support) {
+        notes.push(`claim ${i} dropped: missing text or invalid support`);
         return;
       }
+      // Ids are ours: sequential, unique, never trusted from the model
+      // except to resolve issue references below.
+      const id = `c${claims.length + 1}`;
+      if (c && typeof c.id === "string") seenIds.add(c.id.trim());
+      const issues = codes(c.issues, ISSUE_TYPES, LIMITS.MAX_ISSUES_PER_CLAIM);
+      const externalRequired = c.external_verification_required === true || issues.includes("EXTERNAL_VERIFICATION_REQUIRED");
       claims.push({
+        id,
+        model_id: c && typeof c.id === "string" ? c.id.trim().slice(0, 16) : null,
         text,
         type: oneOf(c.type, CLAIM_TYPES) || "FACTUAL",
-        classification,
+        support,
         confidence: clamp01(c.confidence),
-        explanation: str(c.explanation, LIMITS.MAX_EXPLANATION_CHARS),
-        // Schema 1.1; absent in older results -> UNKNOWN / empty.
-        basis: oneOf(c.basis, CLAIM_BASES) || "UNKNOWN",
-        missing_information: str(c.missing_information, LIMITS.MAX_SIDE_BY_SIDE_CHARS),
-        implied: str(c.implied, LIMITS.MAX_SIDE_BY_SIDE_CHARS),
+        evidence_type: oneOf(c.evidence_type, EVIDENCE_TYPES) || "UNKNOWN",
+        evidence: str(c.evidence, LIMITS.MAX_FIELD_CHARS),
+        gap: str(c.gap, LIMITS.MAX_FIELD_CHARS),
+        inference: str(c.inference, LIMITS.MAX_FIELD_CHARS),
+        issues,
+        external_verification_required: externalRequired,
       });
     });
-    if (raw.claims.length > LIMITS.MAX_CLAIMS) issues.push(`claims truncated to ${LIMITS.MAX_CLAIMS}`);
+    if (raw.claims.length > LIMITS.MAX_CLAIMS) notes.push(`claims truncated to ${LIMITS.MAX_CLAIMS}`);
   }
+  // Resolve model ids -> our ids for issue references, then drop model ids.
+  const idMap = new Map(claims.filter((c) => c.model_id).map((c) => [c.model_id, c.id]));
+  for (const c of claims) delete c.model_id;
 
-  // flags
-  const flags = [];
-  if (!Array.isArray(raw.flags)) {
-    errors.push("flags is not an array");
-  } else {
-    raw.flags.forEach((f, i) => {
-      if (flags.length >= LIMITS.MAX_FLAGS) return;
-      const type = f && oneOf(f.type, FLAG_TYPES);
+  // article-level issues
+  const issues = [];
+  if (raw.issues !== undefined && !Array.isArray(raw.issues)) {
+    notes.push("issues is not an array; ignored");
+  } else if (Array.isArray(raw.issues)) {
+    raw.issues.forEach((f, i) => {
+      if (issues.length >= LIMITS.MAX_ISSUES) return;
+      const type = f && oneOf(f.type, ISSUE_TYPES);
       if (!type) {
-        issues.push(`flag ${i} dropped: invalid type`);
+        notes.push(`issue ${i} dropped: invalid type`);
         return;
       }
-      flags.push({ type, explanation: str(f.explanation, LIMITS.MAX_EXPLANATION_CHARS) });
+      const claim_ids = (Array.isArray(f.claim_ids) ? f.claim_ids : [])
+        .map((x) => (typeof x === "string" ? idMap.get(x.trim()) || (claims.some((c) => c.id === x.trim()) ? x.trim() : null) : null))
+        .filter(Boolean)
+        .slice(0, LIMITS.MAX_CLAIMS);
+      issues.push({ type, note: str(f.note, LIMITS.MAX_FIELD_CHARS), claim_ids });
     });
   }
 
@@ -158,14 +260,18 @@ export function validateAnalysis(raw) {
   const fr = raw.framing && typeof raw.framing === "object" ? raw.framing : null;
   if (!fr) errors.push("missing framing object");
   const detected = Boolean(fr && fr.detected === true);
+  const observations = (fr && Array.isArray(fr.observations) ? fr.observations : [])
+    .map((o) => str(o, LIMITS.MAX_OBSERVATION_CHARS))
+    .filter(Boolean)
+    .slice(0, LIMITS.MAX_FRAMING_OBSERVATIONS);
   const framing = {
     detected,
     type: detected ? oneOf(fr.type, FRAMING_TYPES) || "OTHER" : null,
     strength: detected ? oneOf(fr.strength, FRAMING_STRENGTHS) : null,
     confidence: clamp01(fr && fr.confidence),
-    explanation: str(fr && fr.explanation, LIMITS.MAX_EXPLANATION_CHARS),
+    observations: detected ? observations : [],
   };
-  if (detected && !framing.strength) issues.push("framing.strength missing or invalid; set to null");
+  if (detected && !framing.strength) notes.push("framing.strength missing or invalid; set to null");
 
   // summary
   if (typeof raw.summary !== "string") errors.push("summary is not a string");
@@ -175,12 +281,13 @@ export function validateAnalysis(raw) {
 
   return {
     ok: true,
-    issues,
+    issues: notes,
+    migrated_from: typeof raw.__migrated_from === "string" ? raw.__migrated_from : null,
     value: {
       schema_version: ANALYSIS_SCHEMA_VERSION, // never taken from the model
-      analysis,
+      assessment,
       claims,
-      flags,
+      issues,
       framing,
       summary,
     },

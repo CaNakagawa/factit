@@ -29,6 +29,7 @@ function sanitizeStored(entry) {
   if (!entry || typeof entry !== "object" || !entry.result || typeof entry.result !== "object") return null;
   const { result } = entry;
   if (!ACCEPTED_SCHEMA_VERSIONS.includes(result.schema_version)) return null;
+  // validateAnalysis migrates 1.x results to the current schema.
   const validated = validateAnalysis(result);
   if (!validated.ok) return null;
   const meta = result.meta && typeof result.meta === "object" ? result.meta : {};
@@ -46,6 +47,7 @@ function sanitizeStored(entry) {
         finish: typeof meta.finish === "string" ? meta.finish : "other",
         usage: meta.usage && typeof meta.usage === "object" ? meta.usage : null,
         validation_issues: Array.isArray(meta.validation_issues) ? meta.validation_issues : [],
+        migrated_from: validated.migrated_from || (typeof meta.migrated_from === "string" ? meta.migrated_from : null),
       },
     },
     cached_at: typeof entry.cached_at === "string" ? entry.cached_at : null,

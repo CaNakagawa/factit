@@ -9,14 +9,18 @@ import { loadClassicScript } from "../helpers/load-script.js";
 const dom = new JSDOM("<!DOCTYPE html><html><head></head><body><p>page</p></body></html>", { url: "https://example.com/" });
 globalThis.document = dom.window.document;
 globalThis.HTMLElement = dom.window.HTMLElement;
+loadClassicScript(new URL("../../extension/ui/derive.js", import.meta.url));
 loadClassicScript(new URL("../../extension/ui/top-bar.js", import.meta.url));
 const { createTopBar, supportLabel, supportColor, confidenceLabel } = globalThis.FactIt;
 
+const claim = (over = {}) => ({ id: "c", text: "t", type: "FACTUAL", support: "ARTICLE_SUPPORTED", confidence: 0.7, evidence_type: "NAMED_SOURCE", evidence: "e", gap: "", inference: "", issues: [], external_verification_required: false, ...over });
+
 function result(overrides = {}) {
   return {
-    analysis: { overall_factual_support: 0.62, confidence: 0.45, verification_level: "AI_PRELIMINARY" },
-    claims: [{}, {}, {}],
-    flags: [{}],
+    schema_version: "2.0",
+    assessment: { article_support: 0.62, confidence: 0.45, rationale: "r", verification_level: "AI_PRELIMINARY", external_verification: "NOT_PERFORMED" },
+    claims: [claim(), claim({ support: "ATTRIBUTED" }), claim({ support: "EVIDENCE_GAP" })],
+    issues: [],
     framing: { detected: false },
     summary: "s",
     ...overrides,
@@ -28,11 +32,11 @@ const text = (bar) => [...bar.root.querySelectorAll(".bar > *:not(.main), .main 
   .map((n) => n.textContent).join(" ").replace(/\s+/g, " ").trim();
 
 test("support and confidence labels are descriptive, not verdicts", () => {
-  assert.equal(supportLabel(0.9), "Well supported");
-  assert.equal(supportLabel(0.75), "Well supported");
-  assert.equal(supportLabel(0.6), "Partially supported");
-  assert.equal(supportLabel(0.3), "Weakly supported");
-  assert.equal(supportLabel(0.1), "Insufficient support");
+  assert.equal(supportLabel(0.9), "Well supported within article");
+  assert.equal(supportLabel(0.75), "Well supported within article");
+  assert.equal(supportLabel(0.6), "Partially supported within article");
+  assert.equal(supportLabel(0.3), "Weakly supported within article");
+  assert.equal(supportLabel(0.1), "Little support within article");
   assert.equal(confidenceLabel(0.8), "high confidence");
   assert.equal(confidenceLabel(0.5), "moderate confidence");
   assert.equal(confidenceLabel(0.1), "low confidence");
@@ -76,21 +80,23 @@ test("loading, no-article and result states", () => {
   bar.setResult(result());
   assert.equal(bar.host.dataset.factitState, "result");
   const t = text(bar);
-  assert.match(t, /Factual support: Partially supported/);
-  assert.match(t, /moderate confidence/);
-  assert.match(t, /3 claims/);
-  assert.match(t, /1 flag\b/);
+  assert.match(t, /Article support: 62%/);
+  assert.match(t, /2 need review/);
   assert.match(t, /AI preliminary · not externally verified/);
+  assert.doesNotMatch(t, /Factual support|Strengths|Concerns|framing/i, "banner stays minimal and never mixes framing in");
   assert.equal(bar.root.querySelector(".meter > span").style.width, "62%");
+  assert.match(bar.root.querySelector(".meter").title, /not a truth score/);
 
-  bar.setResult(result({ claims: [], analysis: { overall_factual_support: 0, confidence: 0.2 } }));
+  bar.setResult(result({ claims: [claim()] }));
+  assert.match(text(bar), /no claims need review/);
+
+  bar.setResult(result({ claims: [], assessment: { article_support: 0, confidence: 0.2 } }));
   assert.match(text(bar), /No verifiable claims found/);
-  assert.doesNotMatch(text(bar), /Insufficient support/, "no support verdict when there were no claims");
 });
 
 test("result rendering never turns model strings into markup", () => {
   const bar = createTopBar();
-  bar.setResult(result({ summary: "<img src=x onerror=alert(1)>", claims: [{ text: "<b>x</b>" }] }));
+  bar.setResult(result({ summary: "<img src=x onerror=alert(1)>", claims: [claim({ text: "<b>x</b>" })] }));
   assert.equal(bar.root.querySelectorAll("img, b, script").length, 0);
 });
 
@@ -129,7 +135,7 @@ test("dismiss removes the bar from the page", () => {
 test("cached results are marked in the bar", () => {
   const bar = createTopBar();
   bar.setResult(result(), { cached: true });
-  assert.match(text(bar), /from cache · moderate confidence/);
+  assert.match(text(bar), /from cache · 2 need review/);
   bar.setResult(result());
   assert.doesNotMatch(text(bar), /from cache/);
 });
@@ -142,15 +148,15 @@ test("meter color follows the support thresholds, blue to red, and only support"
   assert.equal(supportColor(0.1), "#ef4444");
   // Same boundaries as the labels.
   for (const s of [0, 0.24, 0.25, 0.49, 0.5, 0.74, 0.75, 1]) {
-    const pairs = { "#3b82f6": "Well supported", "#f59e0b": "Partially supported", "#f97316": "Weakly supported", "#ef4444": "Insufficient support" };
+    const pairs = { "#3b82f6": "Well supported within article", "#f59e0b": "Partially supported within article", "#f97316": "Weakly supported within article", "#ef4444": "Little support within article" };
     assert.equal(pairs[supportColor(s)], supportLabel(s));
   }
 
   const bar = createTopBar();
-  bar.setResult(result({ analysis: { overall_factual_support: 0.2, confidence: 0.9 }, framing: { detected: true, type: "POLITICAL", strength: "HIGH" } }));
+  bar.setResult(result({ assessment: { article_support: 0.2, confidence: 0.9 }, framing: { detected: true, type: "POLITICAL", strength: "HIGH" } }));
   const fill = bar.root.querySelector(".meter > span");
   assert.equal(fill.style.background, "rgb(239, 68, 68)");
-  bar.setResult(result({ analysis: { overall_factual_support: 0.9, confidence: 0.1 }, framing: { detected: true, type: "POLITICAL", strength: "HIGH" } }));
+  bar.setResult(result({ assessment: { article_support: 0.9, confidence: 0.1 }, framing: { detected: true, type: "POLITICAL", strength: "HIGH" } }));
   assert.equal(bar.root.querySelector(".meter > span").style.background, "rgb(59, 130, 246)", "strong framing does not change the color");
 
   bar.setResult(result({ claims: [] }));

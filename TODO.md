@@ -38,6 +38,22 @@ real browser with a real key on the packaged zip, then tag v1.0.0.
 
 ## After V1.0
 
+### 1.2.0 (2026-09-18) - progressive disclosure and schema 2.0
+
+- Banner: `Article support: 72% · 5 need review · Details`; framing
+  never in the indicator.
+- Summary panel (level 2) then Detailed analysis tabs (level 3);
+  token/cost/provider metadata under About.
+- Schema 2.0 claim-centric (ADR-007): within-article support levels,
+  evidence types, issue codes, possible reader inference, observable
+  framing; prompt 2.0.0 requests each fact once (~half the output
+  tokens on a synthetic 20-claim article).
+- 1.x cache entries migrate on read; About shows the note and offers
+  Re-analyze.
+- Tests: 131 unit (schema, migration, derive, panel views, XSS across
+  every view), 26 smoke checks (Details -> Summary -> Detailed ->
+  Claims with real clicks).
+
 ### 1.1.0 (2026-09-18, user requests)
 
 - analysis.rationale + explanations for supported claims
