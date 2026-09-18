@@ -22,3 +22,18 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+
+# AI-agent workflow files (local only; not part of the project)
+AGENTS.md
+agents/
+skills/
+bootstrap.sh
+setup.sh
+.claude/
+CLAUDE.md
+.cursor/
+.aider*
+
+# Local scratch
+*.png.tmp
+scratch/
