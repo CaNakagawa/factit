@@ -131,6 +131,25 @@ test("dismiss removes the bar from the page", () => {
   assert.equal(document.getElementById("factit-bar-host"), null);
 });
 
+test("bar pushes the page down instead of covering it, and restores it on dismiss", () => {
+  const html = document.documentElement;
+  html.style.marginTop = "5px";
+  const bar = createTopBar();
+  assert.equal(html.style.getPropertyValue("margin-top"), "33px");
+  assert.equal(html.style.getPropertyPriority("margin-top"), "important");
+
+  createTopBar();
+  assert.equal(html.style.getPropertyValue("margin-top"), "33px", "re-creating does not shift twice");
+
+  const again = createTopBar();
+  again.dismiss();
+  assert.equal(html.style.getPropertyValue("margin-top"), "5px");
+  assert.equal(html.style.getPropertyPriority("margin-top"), "");
+  bar.dismiss();
+  assert.equal(html.style.getPropertyValue("margin-top"), "5px", "dismissing twice is harmless");
+  html.style.removeProperty("margin-top");
+});
+
 test("cached results are marked in the bar", () => {
   const bar = createTopBar();
   bar.setResult(result(), { cached: true });
