@@ -3,6 +3,9 @@
 // Thin indicator injected at the top of the page. Classic script running
 // in the content-script world; exposes FactIt.createTopBar.
 //
+// The bar does not cover the page: while it is shown, the page is pushed
+// down by the bar's height (margin-top on <html>), and restored on dismiss.
+//
 // The primary indicator is the CONCERN STATUS: the strength of warning
 // signals detected in the content. Never a truth verdict, never political
 // or ideological neutrality, and never "Fact It did not verify this".
@@ -14,6 +17,7 @@
 (function (root) {
   const HOST_ID = "factit-bar-host";
   const PRELIMINARY_LABEL = "AI preliminary · not externally verified";
+  const BAR_HEIGHT = 28;
 
   // Wording, colors and buckets come from ui/derive.js (loaded first).
   const derive = () => root.FactIt.derive;
@@ -22,7 +26,7 @@
     :host { all: initial; }
     .bar {
       position: fixed; top: 0; left: 0; right: 0; z-index: 2147483647;
-      box-sizing: border-box; height: 28px; padding: 0 10px;
+      box-sizing: border-box; height: ${BAR_HEIGHT}px; padding: 0 10px;
       display: flex; align-items: center; gap: 12px;
       background: #1f2933; color: #f5f7fa;
       font: 13px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -50,6 +54,30 @@
     }
     @keyframes factit-spin { to { transform: rotate(360deg); } }
   `;
+
+  // Original inline margin-top of <html> while the page is pushed down;
+  // null when the page is untouched. Keeps the shift idempotent across
+  // bar re-creation.
+  let pageShift = null;
+
+  function pushPageDown() {
+    const html = document.documentElement;
+    if (!html || pageShift) return;
+    pageShift = {
+      value: html.style.getPropertyValue("margin-top"),
+      priority: html.style.getPropertyPriority("margin-top"),
+    };
+    const current = parseFloat(document.defaultView.getComputedStyle(html).marginTop) || 0;
+    html.style.setProperty("margin-top", `${current + BAR_HEIGHT}px`, "important");
+  }
+
+  function restorePage() {
+    const html = document.documentElement;
+    if (!html || !pageShift) return;
+    if (pageShift.value) html.style.setProperty("margin-top", pageShift.value, pageShift.priority);
+    else html.style.removeProperty("margin-top");
+    pageShift = null;
+  }
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -89,6 +117,7 @@
     bar.append(el("span", "brand", "Fact It"), main, close);
     shadow.append(bar);
     (document.documentElement || document.body).append(host);
+    pushPageDown();
 
     function render(state, ...nodes) {
       main.replaceChildren(...nodes);
@@ -164,6 +193,7 @@
 
       dismiss() {
         host.remove();
+        restorePage();
       },
     };
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- UI: the top bar no longer covers the page; the page is pushed down
+  by the bar's height while it is shown and restored on dismiss
+
 ## 1.3.0 - 2026-09-18
 
 - Product direction (ADR-008): concern detection replaces verification
