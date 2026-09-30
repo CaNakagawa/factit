@@ -150,6 +150,44 @@ test("bar pushes the page down instead of covering it, and restores it on dismis
   html.style.removeProperty("margin-top");
 });
 
+test("fixed and sticky headers at the viewport top move below the bar and are restored", async () => {
+  const add = (css) => {
+    const node = document.createElement("div");
+    node.setAttribute("style", css);
+    document.body.append(node);
+    return node;
+  };
+  const fixed = add("position: fixed; top: 0px");
+  const sticky = add("position: sticky; top: 10px");
+  const lower = add("position: fixed; top: 100px");
+  const hidden = add("position: fixed; top: 0px; display: none");
+  const plain = add("top: 0px");
+
+  const bar = createTopBar();
+  assert.equal(fixed.style.getPropertyValue("top"), "28px");
+  assert.equal(fixed.style.getPropertyPriority("top"), "important");
+  assert.equal(sticky.style.getPropertyValue("top"), "38px");
+  assert.equal(lower.style.getPropertyValue("top"), "100px", "elements below the bar are left alone");
+  assert.equal(hidden.style.getPropertyValue("top"), "0px");
+  assert.equal(plain.style.getPropertyValue("top"), "0px", "normal-flow elements move with the margin");
+
+  createTopBar();
+  assert.equal(fixed.style.getPropertyValue("top"), "28px", "re-creating does not shift twice");
+
+  // A header that becomes fixed later (e.g. on scroll) is picked up.
+  const late = add("position: fixed; top: 0px");
+  document.defaultView.dispatchEvent(new dom.window.Event("scroll"));
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(late.style.getPropertyValue("top"), "28px");
+
+  bar.dismiss();
+  assert.equal(fixed.style.getPropertyValue("top"), "0px");
+  assert.equal(fixed.style.getPropertyPriority("top"), "");
+  assert.equal(sticky.style.getPropertyValue("top"), "10px");
+  assert.equal(late.style.getPropertyValue("top"), "0px");
+  for (const node of [fixed, sticky, lower, hidden, plain, late]) node.remove();
+});
+
 test("cached results are marked in the bar", () => {
   const bar = createTopBar();
   bar.setResult(result(), { cached: true });

@@ -5,6 +5,10 @@
 //
 // The bar does not cover the page: while it is shown, the page is pushed
 // down by the bar's height (margin-top on <html>), and restored on dismiss.
+// Page elements anchored to the viewport top (fixed or sticky headers) do
+// not move with the margin, so their `top` is shifted by the same amount;
+// the page is re-scanned on scroll and resize for headers that become
+// fixed or sticky later.
 //
 // The primary indicator is the CONCERN STATUS: the strength of warning
 // signals detected in the content. Never a truth verdict, never political
@@ -59,24 +63,68 @@
   // null when the page is untouched. Keeps the shift idempotent across
   // bar re-creation.
   let pageShift = null;
+  // Viewport-anchored page elements we shifted -> their original inline top.
+  const shiftedTops = new Map();
+  let scanTimer = null;
+
+  const computed = (node) => document.defaultView.getComputedStyle(node);
+
+  function saveInline(node, prop) {
+    return { value: node.style.getPropertyValue(prop), priority: node.style.getPropertyPriority(prop) };
+  }
+
+  function restoreInline(node, prop, saved) {
+    if (saved.value) node.style.setProperty(prop, saved.value, saved.priority);
+    else node.style.removeProperty(prop);
+  }
+
+  // Fixed/sticky elements whose top edge sits within the bar's height would
+  // stay under the bar; move them down by the bar's height. Elements already
+  // shifted end up at top >= BAR_HEIGHT and are skipped, so scans are
+  // idempotent. If the page later resets one's top, it is shifted again.
+  function shiftAnchoredElements() {
+    if (!pageShift || !document.body) return;
+    for (const node of document.body.querySelectorAll("*")) {
+      const style = computed(node);
+      if (style.position !== "fixed" && style.position !== "sticky") continue;
+      if (style.display === "none") continue;
+      const top = parseFloat(style.top);
+      if (!Number.isFinite(top) || top < 0 || top >= BAR_HEIGHT) continue;
+      shiftedTops.set(node, saveInline(node, "top"));
+      node.style.setProperty("top", `${top + BAR_HEIGHT}px`, "important");
+    }
+  }
+
+  function scheduleScan() {
+    if (scanTimer) return;
+    scanTimer = setTimeout(() => {
+      scanTimer = null;
+      shiftAnchoredElements();
+    }, 150);
+  }
 
   function pushPageDown() {
     const html = document.documentElement;
     if (!html || pageShift) return;
-    pageShift = {
-      value: html.style.getPropertyValue("margin-top"),
-      priority: html.style.getPropertyPriority("margin-top"),
-    };
-    const current = parseFloat(document.defaultView.getComputedStyle(html).marginTop) || 0;
+    pageShift = saveInline(html, "margin-top");
+    const current = parseFloat(computed(html).marginTop) || 0;
     html.style.setProperty("margin-top", `${current + BAR_HEIGHT}px`, "important");
+    shiftAnchoredElements();
+    document.defaultView.addEventListener("scroll", scheduleScan, { passive: true, capture: true });
+    document.defaultView.addEventListener("resize", scheduleScan, { passive: true });
   }
 
   function restorePage() {
     const html = document.documentElement;
     if (!html || !pageShift) return;
-    if (pageShift.value) html.style.setProperty("margin-top", pageShift.value, pageShift.priority);
-    else html.style.removeProperty("margin-top");
+    restoreInline(html, "margin-top", pageShift);
     pageShift = null;
+    document.defaultView.removeEventListener("scroll", scheduleScan, { capture: true });
+    document.defaultView.removeEventListener("resize", scheduleScan);
+    clearTimeout(scanTimer);
+    scanTimer = null;
+    for (const [node, saved] of shiftedTops) restoreInline(node, "top", saved);
+    shiftedTops.clear();
   }
 
   function el(tag, className, text) {
