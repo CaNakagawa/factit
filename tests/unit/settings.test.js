@@ -16,7 +16,7 @@ function memoryArea() {
 
 test("sanitizeSettings drops unknown keys, trims, caps and defaults", () => {
   const out = sanitizeSettings({ provider: "evil", apiKey: "  k  ", model: "m".repeat(1000), baseUrl: 42, extra: true });
-  assert.deepEqual(Object.keys(out), ["provider", "apiKey", "model", "baseUrl", "inputPricePerM", "outputPricePerM"]);
+  assert.deepEqual(Object.keys(out), ["provider", "apiKey", "model", "baseUrl", "inputPricePerM", "outputPricePerM", "uiLanguage"]);
   assert.equal(out.provider, "openai");
   assert.equal(out.apiKey, "k");
   assert.equal(out.model.length, 512);
@@ -66,4 +66,12 @@ test("prices: numbers and comma decimals accepted, junk and negatives cleared", 
   assert.equal(sanitizeSettings({ inputPricePerM: "free" }).inputPricePerM, "");
   assert.equal(sanitizeSettings({ outputPricePerM: "-1" }).outputPricePerM, "");
   assert.equal(sanitizeSettings({ outputPricePerM: "" }).outputPricePerM, "");
+});
+
+test("uiLanguage: only the known options are accepted, default is auto", () => {
+  assert.equal(sanitizeSettings({}).uiLanguage, "auto");
+  assert.equal(sanitizeSettings({ uiLanguage: "pt" }).uiLanguage, "pt");
+  assert.equal(sanitizeSettings({ uiLanguage: "en" }).uiLanguage, "en");
+  assert.equal(sanitizeSettings({ uiLanguage: "klingon" }).uiLanguage, "auto");
+  assert.equal(sanitizeSettings({ uiLanguage: 42 }).uiLanguage, "auto");
 });

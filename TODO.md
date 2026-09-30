@@ -38,6 +38,18 @@ real browser with a real key on the packaged zip, then tag v1.0.0.
 
 ## After V1.0
 
+### 1.4.0 (2026-09-30) - tags, two boxes, Portuguese
+
+- Two-box contrast per claim (ADR-010) and one tag per claim (ADR-009),
+  both derived in ui/derive.js from the existing claim record: no
+  schema change, no prompt change, no extra tokens.
+- Interface language setting: auto / en / pt (ADR-011, ui/i18n.js).
+  Analysis text is never translated.
+- 151 unit tests, 28 smoke checks (including the settings page and the
+  in-page bar rendering in Portuguese).
+- Not covered: analysis output language is still the article's; a
+  setting to force it would need a prompt change.
+
 ### 1.3.0 (2026-09-18) - concern detection (ADR-008)
 
 - External verification is metadata, never a concern; status derived

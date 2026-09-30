@@ -16,7 +16,12 @@
 
 (function (root) {
   const HOST_ID = "factit-bar-host";
-  const PRELIMINARY_LABEL = "AI preliminary · not externally verified";
+  // Interface language (ui/i18n.js); analysis text is never translated.
+  const t = (str, vars) => {
+    if (root.FactIt && root.FactIt.i18n) return root.FactIt.i18n.t(str, vars);
+    return vars ? String(str).replace(/\{(\w+)\}/g, (m, k) => (Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : m)) : str;
+  };
+  const PRELIMINARY_LABEL = () => t("AI preliminary · not externally verified");
   const BAR_HEIGHT = 28;
 
   // Wording, colors and buckets come from ui/derive.js (loaded first).
@@ -111,10 +116,10 @@
     });
     const main = el("div", "main");
     const close = el("button", "close", "✕");
-    close.title = "Hide Fact It on this page";
-    close.setAttribute("aria-label", "Hide Fact It bar");
+    close.title = t("Hide Fact It on this page");
+    close.setAttribute("aria-label", t("Hide Fact It bar"));
     close.addEventListener("click", () => api.dismiss());
-    bar.append(el("span", "brand", "Fact It"), main, close);
+    bar.append(el("span", "brand", t("Fact It")), main, close);
     shadow.append(bar);
     (document.documentElement || document.body).append(host);
     pushPageDown();
@@ -136,17 +141,17 @@
 
       setIdle() {
         render("idle",
-          el("span", "text muted", "Not analyzed"),
-          actionButton("Analyze", handlers.onAnalyze),
-          el("span", "tag", "AI preliminary"));
+          el("span", "text muted", t("Not analyzed")),
+          actionButton(t("Analyze"), handlers.onAnalyze),
+          el("span", "tag", t("AI preliminary")));
       },
 
       setLoading() {
-        render("loading", el("span", "spinner"), el("span", "text muted", "Analyzing…"));
+        render("loading", el("span", "spinner"), el("span", "text muted", t("Analyzing…")));
       },
 
       setNoArticle() {
-        render("no-article", el("span", "text muted", "No article detected on this page"));
+        render("no-article", el("span", "text muted", t("No article detected on this page")));
       },
 
       /**
@@ -164,16 +169,16 @@
         dot.style.background = color;
         dot.title = st.meaning;
 
-        const label = n.total === 0 ? "No verifiable claims found" : text.label;
-        let detail = n.total === 0 ? `${d.confidenceWord(result.assessment.confidence)} confidence` : text.detail;
-        if (options.cached) detail = detail ? `from cache · ${detail}` : "from cache";
+        const label = n.total === 0 ? t("No verifiable claims found") : text.label;
+        let detail = n.total === 0 ? t("{word} confidence", { word: d.confidenceWord(result.assessment.confidence) }) : text.detail;
+        if (options.cached) detail = detail ? t("from cache · {detail}", { detail }) : t("from cache");
 
         const labelNode = el("span", "text label", label);
         labelNode.style.color = n.total === 0 ? "" : color;
         const nodes = [dot, labelNode];
         if (detail) nodes.push(el("span", "text muted detail", detail));
-        nodes.push(el("span", "tag long", PRELIMINARY_LABEL));
-        if (handlers.onDetails) nodes.push(actionButton("Details", handlers.onDetails));
+        nodes.push(el("span", "tag long", PRELIMINARY_LABEL()));
+        if (handlers.onDetails) nodes.push(actionButton(t("Details"), handlers.onDetails));
         render("result", ...nodes);
         bar.style.cursor = handlers.onDetails ? "pointer" : "";
       },
@@ -181,12 +186,12 @@
       /** @param {{ kind?: string, message?: string }} error */
       setError(error) {
         const kind = (error && error.kind) || "unknown";
-        const message = (error && error.message) || "Unknown error";
-        const nodes = [el("span", "text", `Analysis failed (${kind}): ${message}`)];
+        const message = (error && error.message) || t("Unknown error");
+        const nodes = [el("span", "text", t("Analysis failed ({kind}): {message}", { kind, message }))];
         if (kind === "config" || kind === "auth") {
-          nodes.push(actionButton("Open settings", handlers.onOpenSettings));
+          nodes.push(actionButton(t("Open settings"), handlers.onOpenSettings));
         } else if (kind !== "extension_reloaded") {
-          nodes.push(actionButton("Retry", handlers.onAnalyze));
+          nodes.push(actionButton(t("Retry"), handlers.onAnalyze));
         }
         render("error", ...nodes);
       },

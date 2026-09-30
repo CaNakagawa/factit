@@ -9,8 +9,8 @@ import { loadClassicScript } from "../helpers/load-script.js";
 const dom = new JSDOM("<!DOCTYPE html><html><head></head><body></body></html>", { url: "https://example.com/" });
 globalThis.document = dom.window.document;
 globalThis.HTMLElement = dom.window.HTMLElement;
-for (const f of ["ui/derive.js", "ui/top-bar.js", "ui/panel.js"]) loadClassicScript(new URL(`../../extension/${f}`, import.meta.url));
-const { createTopBar, createPanel } = globalThis.FactIt;
+for (const f of ["ui/i18n.js", "ui/derive.js", "ui/top-bar.js", "ui/panel.js"]) loadClassicScript(new URL(`../../extension/${f}`, import.meta.url));
+const { createTopBar, createPanel, i18n } = globalThis.FactIt;
 
 const claim = (over = {}) => ({
   id: "c1", text: "Microsoft released fixes for CVE-2026-85889.", type: "FACTUAL", support: "ATTRIBUTED", attribution: "CLEAR",
@@ -91,7 +91,7 @@ test("Summary for a concerning article: red status, counters, key findings with 
   const counters = [...el.querySelectorAll(".counter")].map((c) => `${c.querySelector(".n").textContent} ${c.querySelector(".l").textContent}`);
   assert.deepEqual(counters, ["3 claims analyzed", "2 significant concerns", "1 observations", "1 contradictions"]);
   const findings = [...el.querySelectorAll(".finding")].map((f) => f.querySelector(".lbl").textContent);
-  assert.deepEqual(findings, ["Headline contradicts body", "Serious allegation presented as fact", "Questionable statistic"]);
+  assert.deepEqual(findings, ["CONTRADICTIONHeadline contradicts body", "SUSPICIOUSSerious allegation presented as fact", "NEEDS REVIEWQuestionable statistic"], "key findings carry the claim's tag");
   assert.match(t, /Possible political framing · Moderate · confidence 60%/);
   assert.match(t, /Framing is reported separately and does not affect the status/);
   assert.equal(el.querySelector(".status .dot").style.background, "rgb(239, 68, 68)");
@@ -105,13 +105,18 @@ test("Inspect claims opens the Claims tab; ordinary claims are green and expand 
   assert.deepEqual([...panel.querySelectorAll("button.tab")].map((b) => b.textContent), ["Overview", "Claims", "Evidence", "Framing", "About"]);
   const items = [...panel.querySelectorAll(".claim")];
   assert.equal(items.length, 3);
+  // All three are ordinary reporting (green); the tag says how the article
+  // backs each one: two documents/records, one direct quote.
+  assert.deepEqual(items.map((it) => it.querySelector(".tag").textContent), ["DOCUMENTED", "DOCUMENTED", "SOURCED"]);
   for (const it of items) {
     assert.equal(it.querySelector(".mark").style.background, "rgb(34, 197, 94)");
-    assert.equal(it.querySelector(".reason").textContent, "Attributed reporting");
+    assert.equal(it.querySelector(".tag").style.color, "rgb(34, 197, 94)");
+    assert.match(it.querySelector(".reason").textContent, /Attributed reporting$/);
   }
   items[0].querySelector("button").click();
   const dl = items[0].querySelector("dl");
   assert.equal(dl.hidden, false);
+  assert.equal(items[0].querySelector(".boxes").hidden, false, "the two boxes open with the claim");
   const fields = [...dl.querySelectorAll("dt")].map((d) => d.textContent);
   assert.deepEqual(fields, ["Within the article", "Type", "Attribution", "Article evidence", "Evidence type", "Concerns", "External verification"]);
   const values = [...dl.querySelectorAll("dd")].map((d) => d.textContent);
@@ -126,7 +131,7 @@ test("Claims tab for a concerning article: concerns first, expanded fields inclu
   panel.showDetail("claims");
   const p = root.querySelector(".panel");
   const reasons = [...p.querySelectorAll(".claim .reason")].map((r) => r.textContent);
-  assert.deepEqual(reasons, ["Headline contradicts body", "Serious allegation presented as fact", "Questionable statistic"]);
+  assert.deepEqual(reasons, ["CONTRADICTIONHeadline contradicts body", "SUSPICIOUSSerious allegation presented as fact", "NEEDS REVIEWQuestionable statistic"]);
   p.querySelectorAll(".claim button")[1].click();
   const dts = [...p.querySelectorAll(".claim")[1].querySelectorAll("dt")].map((d) => d.textContent);
   assert.deepEqual(dts, ["Within the article", "Type", "Attribution", "Article evidence", "Evidence type", "Concerns", "What is missing", "Possible reader inference", "External verification"]);
@@ -154,8 +159,9 @@ test("Evidence tab: side by side lists only claims with concerns, with possible 
   const p = root.querySelector(".panel");
   const t = text(p);
   assert.match(t, /Side by side: claims with concerns \(3\)/);
-  const dts = [...p.querySelectorAll(".sbs .row:first-of-type dt")].map((d) => d.textContent);
-  assert.deepEqual(dts, ["Article says", "Evidence presented", "What may be missing", "Possible reader inference"]);
+  const first = p.querySelector(".sbs .row");
+  assert.deepEqual([...first.querySelectorAll(".box h5")].map((h) => h.textContent), ["What it leads you to believe", "What it actually says"]);
+  assert.equal(first.querySelector(".tag").textContent, "CONTRADICTION");
   assert.match(t, /That the minister acted in bad faith/);
   assert.doesNotMatch(t, /Leads the reader to/);
   const ok = mount(result());
@@ -238,4 +244,80 @@ test("panel API: open/close/toggle and open('claims')", () => {
   assert.equal(bar.host.dataset.factitView, "detail:claims");
   bar.root.querySelector(".panel .back").click();
   assert.equal(bar.host.dataset.factitView, "summary");
+});
+
+test("two boxes: the invited takeaway on the left, what the text states and shows on the right", () => {
+  const { panel, root } = mount(concerning());
+  panel.showDetail("claims");
+  const items = [...root.querySelectorAll(".claim")];
+  // c2: the unsupported allegation carries an inference, so the left box is
+  // the takeaway and the literal statement moves to the right.
+  items[1].querySelector("button").click();
+  const boxes = items[1].querySelector(".boxes");
+  assert.deepEqual([...boxes.querySelectorAll(".box h5")].map((h) => h.textContent), ["What it leads you to believe", "What it actually says"]);
+  assert.equal(boxes.querySelector(".box.believe p").textContent, "That the minister acted in bad faith.");
+  const right = [...boxes.querySelectorAll(".box.says p")].map((p) => p.textContent);
+  assert.deepEqual(right, [
+    "StatedThe minister diverted funds to a foundation.",
+    "ShownNo evidence shown",
+    "Not shownNo document or statement is presented.",
+  ]);
+  assert.doesNotMatch(boxes.textContent, /intent|motive/i, "no claim about intent");
+
+  // An ordinary claim with no inference: the left box is the claim as put,
+  // the right box is what the article actually shows for it.
+  const ok = mount(result());
+  ok.panel.showDetail("claims");
+  const first = ok.root.querySelector(".claim");
+  first.querySelector("button").click();
+  const okBoxes = first.querySelector(".boxes");
+  assert.equal(okBoxes.querySelector(".box.believe p").textContent, "Microsoft released fixes for CVE-2026-85889.");
+  assert.match(okBoxes.querySelector(".box.believe").textContent, /nothing further is implied/);
+  assert.deepEqual([...okBoxes.querySelectorAll(".box.says p")].map((p) => p.textContent), ["ShownMicrosoft advisory, linked"]);
+});
+
+test("tags: one per claim, color matches the claim's dot, never asserts truth", () => {
+  const { root, panel } = mount(concerning());
+  panel.showDetail("claims");
+  const items = [...root.querySelectorAll(".claim")];
+  const pairs = items.map((it) => [it.querySelector(".tag").textContent, it.querySelector(".tag").style.color, it.querySelector(".mark").style.background]);
+  assert.deepEqual(pairs, [
+    ["CONTRADICTION", "rgb(239, 68, 68)", "rgb(239, 68, 68)"],
+    ["SUSPICIOUS", "rgb(239, 68, 68)", "rgb(239, 68, 68)"],
+    ["NEEDS REVIEW", "rgb(245, 158, 11)", "rgb(245, 158, 11)"],
+  ], "tag color always agrees with the claim bucket color");
+  for (const it of items) assert.equal(it.querySelectorAll(".tag").length, 1, "exactly one tag per claim");
+  assert.doesNotMatch(root.querySelector(".panel").textContent, /\bFACT\b|\bTRUE\b|\bVERIFIED\b/, "no tag claims verification");
+});
+
+test("interface in Portuguese: chrome translates, the model's text does not", () => {
+  try {
+    i18n.setLanguage("pt");
+    const { bar, panel, root, el } = mount(concerning(), { article: { author: "Jane Roe" }, onReanalyze: () => {} });
+    const summary = text(el);
+    assert.match(summary, /Situação Preocupações relevantes/);
+    assert.match(summary, /IA PRELIMINAR · NENHUMA VERIFICAÇÃO EXTERNA REALIZADA/);
+    assert.match(summary, /Principais achados/);
+    assert.match(summary, /Transparência das fontes/);
+    assert.match(summary, /Inspecionar afirmações \(3\)/);
+    assert.match(summary, /Analisar de novo \(consome tokens\)/);
+    assert.match(summary, /Enquadramento político possível · Moderada/);
+    // The model's own text is left exactly as it came back.
+    assert.match(summary, /The headline claims proof the body withdraws/);
+    assert.match(summary, /The minister diverted funds to a foundation\./);
+
+    panel.showDetail("claims");
+    const p = root.querySelector(".panel");
+    assert.deepEqual([...p.querySelectorAll("button.tab")].map((b) => b.textContent), ["Visão geral", "Afirmações", "Evidências", "Enquadramento", "Sobre"]);
+    assert.deepEqual([...p.querySelectorAll(".claim .tag")].map((x) => x.textContent), ["CONTRADIÇÃO", "SUSPEITO", "REVISAR"]);
+    p.querySelectorAll(".claim button")[1].click();
+    assert.deepEqual([...p.querySelectorAll(".claim")[1].querySelectorAll(".box h5")].map((h) => h.textContent), ["O que leva você a acreditar", "O que de fato diz"]);
+    assert.deepEqual([...p.querySelectorAll(".claim")[1].querySelectorAll(".box.says .k")].map((k) => k.textContent), ["Afirma", "Mostra", "Não mostra"]);
+    assert.equal(p.querySelectorAll(".claim")[1].querySelector("dt").textContent, "Dentro do artigo");
+
+    bar.setResult(concerning(), {});
+    assert.match(bar.root.querySelector(".bar").textContent, /Preocupações relevantes/);
+  } finally {
+    i18n.setLanguage("en");
+  }
 });

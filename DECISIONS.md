@@ -303,3 +303,93 @@ mislead the reader?", not "has Fact It proven every statement?".
 - A future Evidence Engine can fill `external_verification` per claim
   without changing the concern model.
 
+---
+
+## ADR-009 - Claim tags describe the article, never the truth of a claim
+
+### Context
+
+Inspecting a claim required reading several fields. A short tag per claim
+makes the list scannable. The obvious vocabulary ("FACT", "TRUE") would
+undo ADR-008: nothing is externally verified in V1, so a tag that reads
+as a verdict would tell the reader the opposite of what the product can
+honestly say.
+
+### Decision
+
+Each claim carries exactly one tag, derived in ui/derive.js from the
+claim record (no extra model output, no extra tokens):
+
+CONTRADICTION · SUSPICIOUS · NEEDS REVIEW · UNSOURCED · ALLEGATION ·
+OPINION · UNCLEAR · DOCUMENTED · SOURCED · REPORTED
+
+Every tag states something observable about the text: what the article
+shows for the claim (DOCUMENTED, SOURCED, REPORTED, UNSOURCED), what
+kind of statement it is (ALLEGATION, OPINION, UNCLEAR), or what concern
+was found (CONTRADICTION, SUSPICIOUS, NEEDS REVIEW). There is no FACT or
+VERIFIED tag, and a test asserts none is ever introduced.
+
+Concerns outrank everything, so a tag can never disagree with the
+claim's color; tag tones map to the existing buckets (alert -> concern,
+caution -> caution, ok/neutral -> ok).
+
+### Alternatives
+
+- "FACT" for well-backed claims: rejected; it reads as a verification
+  Fact It did not perform.
+- Several tags per claim: rejected; the list stops being scannable and
+  the tags start competing with the concern list.
+
+---
+
+## ADR-010 - Two-box contrast, derived from the existing claim record
+
+### Context
+
+Readers asked for the gap between what a passage makes them believe and
+what it actually says. Schema 2.1 already carries `inference` (a
+possible reader inference the text invites but does not establish),
+`text`, `evidence` and `gap`.
+
+### Decision
+
+The contrast is a view, not new model output: left box = `inference`
+when present, otherwise the claim as stated; right box = the literal
+statement (when the left box holds the inference), what the article
+shows, and what it does not show. Shown inside an expanded claim and in
+the Evidence tab's side-by-side. No schema change, no prompt change, no
+extra tokens.
+
+Headers are "What it leads you to believe" and "What it actually says",
+with a note that both are observations about the text, never claims
+about the author's intent (ADR-008).
+
+---
+
+## ADR-011 - Interface language is a setting, with English as the fallback
+
+### Context
+
+The interface was English-only while the analysis text follows the
+article's language. Users reading in Portuguese wanted the chrome in
+Portuguese too.
+
+### Decision
+
+A small dictionary module (ui/i18n.js) keyed by the English source
+string, with `t(source, vars)`; `uiLanguage` in settings is auto | en |
+pt, where auto follows the browser. Untranslated strings fall back to
+the English source, so a missing entry degrades instead of showing an
+identifier.
+
+chrome.i18n and `_locales/` are not used: they follow the browser's UI
+language and cannot be overridden by a setting, which is what was asked
+for.
+
+The content script gets only the language from the background
+(FACTIT_UI_PREFS); the rest of the settings, including the key, stay in
+the privileged context (SECURITY.md).
+
+Analysis text is never translated: it is the model's output in the
+article's language.
+

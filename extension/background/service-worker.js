@@ -146,6 +146,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         .catch((error) => sendResponse({ ok: false, error: errorDetail(error) }));
       return true; // async
 
+    // Interface language only. The key and the rest of the settings never
+    // leave this context (SECURITY.md).
+    case "FACTIT_UI_PREFS":
+      if (!isContentScript(sender) && !isExtensionPage(sender)) return false;
+      settings.get()
+        .then((s) => sendResponse({ language: s.uiLanguage }))
+        .catch(() => sendResponse({ language: "auto" }));
+      return true;
+
     case "FACTIT_LOOKUP":
       if (!isContentScript(sender)) return false;
       lookup(message.content_hash)

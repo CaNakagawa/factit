@@ -5,8 +5,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadClassicScript } from "../helpers/load-script.js";
 
+loadClassicScript(new URL("../../extension/ui/i18n.js", import.meta.url));
 loadClassicScript(new URL("../../extension/ui/derive.js", import.meta.url));
 const D = globalThis.FactIt.derive;
+const { i18n } = globalThis.FactIt;
 
 const claim = (over = {}) => ({
   id: "c1", text: "t", type: "FACTUAL", support: "ATTRIBUTED", attribution: "CLEAR",
@@ -105,4 +107,110 @@ test("sourceTransparency is observational and falls back to claim records", () =
 test("evidenceProfile counts evidence types presented by the article", () => {
   const p = D.evidenceProfile(result([claim(), claim(), claim({ evidence_type: "NO_EVIDENCE_SHOWN" })]));
   assert.deepEqual(p, [{ type: "NAMED_SOURCE", label: "Named source", count: 2 }, { type: "NO_EVIDENCE_SHOWN", label: "No evidence shown", count: 1 }]);
+});
+
+test("tagOf: one tag per claim, concerns outrank everything, no truth claim", () => {
+  const tag = (over, concerns = []) => D.tagOf(claim(over), result([claim(over)], concerns)).code;
+  assert.equal(tag({ evidence_type: "PRIMARY_DOCUMENT" }), "DOCUMENTED");
+  assert.equal(tag({ evidence_type: "OFFICIAL_RECORD", support: "ARTICLE_SUPPORTED" }), "DOCUMENTED");
+  assert.equal(tag({ evidence_type: "NAMED_SOURCE" }), "SOURCED");
+  assert.equal(tag({ evidence_type: "DIRECT_QUOTE" }), "SOURCED");
+  assert.equal(tag({ evidence_type: "ARTICLE_ASSERTION", attribution: "NONE" }), "REPORTED");
+  assert.equal(tag({ support: "ALLEGATION_REPORTED", type: "ALLEGATION" }), "ALLEGATION");
+  assert.equal(tag({ type: "OPINION" }), "OPINION");
+  assert.equal(tag({ support: "UNCLEAR" }), "UNCLEAR");
+  assert.equal(tag({ support: "UNSUPPORTED_WITHIN_ARTICLE" }), "UNSOURCED");
+  assert.equal(tag({ support: "INTERNALLY_CONTRADICTED" }), "CONTRADICTION");
+  assert.equal(tag({ concerns: ["MATERIAL_MISSING_CONTEXT"] }), "NEEDS_REVIEW");
+  assert.equal(tag({ concerns: ["UNSUPPORTED_SERIOUS_ALLEGATION"] }), "SUSPICIOUS");
+  assert.equal(tag({ concerns: ["INTERNAL_CONTRADICTION"] }), "CONTRADICTION");
+  // A concern outranks an otherwise well-backed claim.
+  assert.equal(tag({ evidence_type: "PRIMARY_DOCUMENT", concerns: ["MISLEADING_STATISTIC"] }), "NEEDS_REVIEW");
+  // An article-level concern that names the claim counts too.
+  const c = claim({ id: "c9", evidence_type: "PRIMARY_DOCUMENT" });
+  assert.equal(D.tagOf(c, result([c], [concern("HEADLINE_CONTRADICTS_BODY", ["c9"])])).code, "CONTRADICTION");
+
+  // No tag asserts truth or verification, and every tone maps to a color.
+  for (const [code, t] of Object.entries(D.TAGS)) {
+    assert.doesNotMatch(t.label, /\bFACT\b|TRUE|VERIFIED/i, code);
+    assert.ok(D.TAG_COLOR[t.tone], code);
+  }
+});
+
+test("tagOf: tag color never disagrees with the claim's bucket color", () => {
+  const cases = [
+    claim(), claim({ support: "UNCLEAR" }), claim({ type: "OPINION" }), claim({ support: "ALLEGATION_REPORTED" }),
+    claim({ support: "UNSUPPORTED_WITHIN_ARTICLE" }), claim({ concerns: ["SELECTIVE_EVIDENCE"] }),
+    claim({ concerns: ["INVALID_CITATION"] }), claim({ support: "INTERNALLY_CONTRADICTED" }),
+  ];
+  for (const c of cases) {
+    const r = result([c]);
+    const tag = D.tagOf(c, r);
+    const bucket = D.bucketOf(c, r);
+    const compatible = { concern: ["alert"], caution: ["caution"], ok: ["ok", "neutral"] };
+    assert.ok(compatible[bucket].includes(tag.tone), `${tag.code} (${tag.tone}) in bucket ${bucket}`);
+  }
+});
+
+test("twoBoxes: inference on the left moves the statement to the right", () => {
+  const withInference = claim({ text: "Sales rose 3%.", concerns: ["MISLEADING_STATISTIC"], gap: "Compared against a holiday quarter.", inference: "That the business is growing strongly.", evidence: "quarterly report" });
+  const tb = D.twoBoxes(withInference, result([withInference]));
+  assert.equal(tb.believe, "That the business is growing strongly.");
+  assert.equal(tb.fromInference, true);
+  assert.deepEqual(tb.says, [
+    { key: "Stated", text: "Sales rose 3%." },
+    { key: "Shown", text: "quarterly report" },
+    { key: "Not shown", text: "Compared against a holiday quarter." },
+  ]);
+  assert.equal(tb.tag.code, "NEEDS_REVIEW");
+
+  const plain = claim({ text: "The council voted 7-2.", evidence: "session record" });
+  const tb2 = D.twoBoxes(plain, result([plain]));
+  assert.equal(tb2.believe, "The council voted 7-2.", "with no inference the left box is the claim as put");
+  assert.equal(tb2.fromInference, false);
+  assert.deepEqual(tb2.says, [{ key: "Shown", text: "session record" }]);
+
+  const nothing = claim({ text: "X happened.", evidence: "", evidence_type: "NO_EVIDENCE_SHOWN", support: "UNSUPPORTED_WITHIN_ARTICLE" });
+  assert.deepEqual(D.twoBoxes(nothing, result([nothing])).says, [{ key: "Shown", text: "No evidence shown" }]);
+});
+
+test("interface language: labels, tags and counts translate; analysis text is untouched", () => {
+  const c = claim({ text: "O ministro desviou recursos.", support: "UNSUPPORTED_WITHIN_ARTICLE", concerns: ["UNSUPPORTED_SERIOUS_ALLEGATION"], gap: "Nenhum documento é apresentado.", inference: "Que houve má-fé." });
+  const r = result([c]);
+  try {
+    i18n.setLanguage("pt");
+    assert.equal(D.status(r).label, "Preocupações relevantes");
+    assert.match(D.status(r).meaning, /^O conteúdo analisado se contradiz/);
+    assert.equal(D.tagOf(c, r).label, "SUSPEITO");
+    assert.equal(D.reasonOf(c, r), "Acusação grave apresentada como fato");
+    assert.equal(D.supportLabel("ATTRIBUTED"), "Relato atribuído");
+    assert.equal(D.evidenceLabel("NAMED_SOURCE"), "Fonte identificada");
+    assert.equal(D.attributionLabel("CLEAR"), "Clara");
+    assert.equal(D.confidenceWord(0.8), "alta");
+    assert.deepEqual(D.bannerText(r), { label: "Preocupações relevantes", detail: "1 problema" }, "a significant concern is counted as an issue");
+    assert.deepEqual(D.bannerText(result([claim({ concerns: ["SELECTIVE_EVIDENCE"] }), claim({ id: "c2", concerns: ["MISLEADING_STATISTIC"] })])), { label: "Revisão recomendada", detail: "2 preocupações" });
+    const tb = D.twoBoxes(c, r);
+    assert.deepEqual(tb.says.map((x) => x.key), ["Afirma", "Mostra", "Não mostra"]);
+    // The model's text is never translated.
+    assert.equal(tb.believe, "Que houve má-fé.");
+    assert.equal(tb.says[0].text, "O ministro desviou recursos.");
+    assert.equal(D.sourceTransparency(r, {}).items[0].label, "Autoria identificada");
+  } finally {
+    i18n.setLanguage("en");
+  }
+  assert.equal(D.status(r).label, "Significant concerns", "switches back");
+});
+
+test("i18n: unknown strings fall back to English, placeholders interpolate, auto follows the browser", () => {
+  const { t, resolve, LANGUAGES } = i18n;
+  i18n.setLanguage("pt");
+  assert.equal(t("A string nobody translated"), "A string nobody translated");
+  assert.equal(t("{n} concerns", { n: 4 }), "4 preocupações");
+  assert.equal(t("{n} concerns", {}), "{n} preocupações", "a missing value keeps the placeholder");
+  i18n.setLanguage("en");
+  assert.equal(t("{n} concerns", { n: 4 }), "4 concerns");
+  assert.deepEqual(LANGUAGES.map((l) => l.code), ["auto", "en", "pt"]);
+  assert.equal(resolve("pt"), "pt");
+  assert.equal(resolve("en"), "en");
+  assert.ok(["en", "pt"].includes(resolve("auto")), "auto resolves from the browser language");
 });

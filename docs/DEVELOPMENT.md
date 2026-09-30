@@ -87,6 +87,21 @@ Provider connection:
 Provider requests are made only by the background worker; the settings
 page and content scripts never call providers directly.
 
+Interface language:
+
+- Settings has **Interface language**: Automatic (browser), English or
+  Português. It applies to Fact It's own interface only; the analysis
+  text stays in the language of the article.
+- Strings live in `extension/ui/i18n.js`, keyed by the English source,
+  so a missing translation shows English rather than an identifier.
+  Static settings-page text is marked `data-i18n` and translated on
+  load and on change.
+- The content script asks the background for the language
+  (`FACTIT_UI_PREFS`) on load and before each analysis; the rest of the
+  settings never leave the privileged context. A page already open when
+  the setting changes keeps its language until it is reloaded or the
+  next analysis runs.
+
 Cost estimation:
 
 - Settings has optional *price per 1M input / output tokens (USD)*.
@@ -127,10 +142,14 @@ Fact It bar and analysis:
    **Detailed analysis**, **Re-analyze (uses tokens)**.
 7. **Detailed analysis** (level 3) has tabs: Overview (rationale,
    summary, highlights "Concerns" / "Ordinary reporting, no concern"),
-   Claims (green unless they carry a concern; each expandable: status
-   within the article, type, attribution, article evidence, evidence
-   type, concerns, what is missing, possible reader inference, external
-   verification as metadata; plus article-level concerns), Evidence
+   Claims (each row carries one tag - CONTRADICTION, SUSPICIOUS, NEEDS
+   REVIEW, UNSOURCED, ALLEGATION, OPINION, UNCLEAR, DOCUMENTED, SOURCED,
+   REPORTED - and is green unless it carries a concern; expanding shows
+   the two boxes, "What it leads you to believe" vs "What it actually
+   says", then status within the article, type, attribution, article
+   evidence, evidence type, concerns, what is missing, possible reader
+   inference, external verification as metadata; plus article-level
+   concerns), Evidence
    (evidence-type profile and side-by-side rows for claims with
    concerns only: article says / evidence presented / what may be
    missing / possible reader inference), Framing (observed
@@ -217,7 +236,7 @@ npm run vendor
 
 SECURITY.md requires a documented reason for every permission.
 
-Current state (1.3.0):
+Current state (1.4.0):
 
 | Manifest key         | Value                          | Reason |
 |----------------------|--------------------------------|--------|
@@ -244,7 +263,8 @@ extension/
   analysis/prompt.js             PROMPT_VERSION, buildPrompt(article)
   analysis/validator.js          parse + validate model output
   analysis/engine.js             analyzeArticle(article, provider)
-  ui/derive.js                   buckets, labels, counters, findings, side-by-side (pure)
+  ui/i18n.js                     interface language (en, pt) + t()
+  ui/derive.js                   buckets, tags, labels, counters, findings, two boxes (pure)
   ui/top-bar.js                  Fact It bar (closed shadow root)
   ui/panel.js                    summary + detailed tabs (same root)
   providers/provider.js          registry + createProvider (common interface)

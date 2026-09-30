@@ -74,6 +74,17 @@
     bar.setResult(result, { cached });
   }
 
+  // The interface language lives in settings; ask the background for it
+  // (never the whole settings object, which holds the API key).
+  async function applyUiLanguage() {
+    try {
+      const prefs = await chrome.runtime.sendMessage({ type: "FACTIT_UI_PREFS" });
+      if (prefs && prefs.language) FactIt.i18n.setLanguage(prefs.language);
+    } catch {
+      // Background unavailable or extension reloaded; keep the default.
+    }
+  }
+
   const articleMetaOf = (article) => article && article.document
     ? { author: article.document.author, published_at: article.document.published_at, domain: article.document.domain }
     : null;
@@ -82,6 +93,7 @@
   // when a result exists, toggles the details panel.
   async function toggleUi() {
     if (running) return { ok: true, state: "running" };
+    await applyUiLanguage();
     const hadBar = Boolean(bar && bar.host.isConnected);
     const ui = ensureBar();
     // Re-assert our bar on top: a page may have stacked its own elements
@@ -103,6 +115,7 @@
     const force = options.force === true;
     if (running) return { ok: false, error: { kind: "busy", message: "Analysis already running." } };
     if (lastResult && !force) return { ok: true, result: lastResult, cached: true }; // only Re-analyze re-runs
+    await applyUiLanguage();
     running = true;
     const ui = ensureBar();
     try {
@@ -159,7 +172,9 @@
   });
 
   console.log("[Fact It] content script loaded:", location.href);
-  buildArticleDocument().then(async (article) => {
+  (async () => {
+    await applyUiLanguage();
+    const article = await buildArticleDocument();
     console.log("[Fact It] article:", summarize(article));
     if (!article) return;
     // Idle bar only where there is something to analyze (ADR-006), or the
@@ -175,7 +190,7 @@
       // Background unavailable; stay idle.
     }
     void ui;
-  });
+  })();
 
   chrome.runtime.sendMessage({ type: "FACTIT_PING" }, (response) => {
     if (chrome.runtime.lastError) {

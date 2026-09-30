@@ -1,7 +1,19 @@
 # Changelog
 
-## Unreleased
+## 1.4.0 - 2026-09-30
 
+- Claims: two boxes contrasting **what it leads you to believe** with
+  **what it actually says** (the literal statement, what the article
+  shows, what it does not), in the expanded claim and in the Evidence
+  tab's side-by-side (ADR-010)
+- Claims carry one tag: CONTRADICTION, SUSPICIOUS, NEEDS REVIEW,
+  UNSOURCED, ALLEGATION, OPINION, UNCLEAR, DOCUMENTED, SOURCED,
+  REPORTED. Tags describe the article, never the truth of a claim;
+  there is no FACT tag (ADR-009)
+- Settings: **Interface language** (Automatic / English / Português).
+  Analysis text still follows the language of the article (ADR-011)
+- Both features are derived from the existing analysis: no schema or
+  prompt change, no extra tokens
 - UI: the top bar no longer covers the page; the page is pushed down
   by the bar's height while it is shown and restored on dismiss
 

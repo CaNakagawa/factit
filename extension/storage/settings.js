@@ -12,6 +12,10 @@ const MAX_FIELD_CHARS = 512;
 
 export const PROVIDER_IDS = Object.freeze(["openai", "anthropic", "openai-compatible"]);
 
+// Interface language. "auto" follows the browser; the analysis text always
+// follows the language of the article (see ui/i18n.js).
+export const UI_LANGUAGES = Object.freeze(["auto", "en", "pt"]);
+
 export const DEFAULT_SETTINGS = Object.freeze({
   provider: "openai",
   apiKey: "",
@@ -20,6 +24,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   // USD per 1M tokens, as entered; "" = unknown (tokens shown, no cost).
   inputPricePerM: "",
   outputPricePerM: "",
+  uiLanguage: "auto",
 });
 
 /**
@@ -41,6 +46,7 @@ export function sanitizeSettings(input) {
     baseUrl: str(src.baseUrl),
     inputPricePerM: price(src.inputPricePerM),
     outputPricePerM: price(src.outputPricePerM),
+    uiLanguage: UI_LANGUAGES.includes(src.uiLanguage) ? src.uiLanguage : DEFAULT_SETTINGS.uiLanguage,
   };
 }
 

@@ -18,6 +18,8 @@
 //      the DOM domain) opens the panel with the analysis
 //  10. reloading the article shows the cached result with no provider
 //      call; Re-analyze makes exactly one; settings can clear the cache
+//  11. the Portuguese option translates the settings page and the in-page
+//      bar, and survives a page load
 //
 // Requires a Chromium binary that honours --load-extension. Branded Google
 // Chrome (137+) silently ignores that flag, so this defaults to `chromium`.
@@ -310,6 +312,22 @@ try {
     "article sent as data in the user turn, instructions in system");
   check(providerCalls.length === callsBefore + 1, "exactly one provider call, caused by the Analyze click", `${providerCalls.length - callsBefore}`);
 
+  // The content script may ask for the interface language; it must never
+  // receive anything else from settings (SECURITY.md).
+  const prefsWorld = page.events.filter((e) =>
+    e.method === "Runtime.executionContextCreated" && e.params.context.auxData?.type === "isolated" &&
+    e.params.context.origin.startsWith(`chrome-extension://${extensionId}`)).pop();
+  const prefs = prefsWorld ? await page.send("Runtime.evaluate", {
+    contextId: prefsWorld.params.context.id,
+    expression: "chrome.runtime.sendMessage({ type: 'FACTIT_UI_PREFS' }).then((r) => JSON.stringify(r))",
+    awaitPromise: true, returnByValue: true,
+  }) : null;
+  const prefsJson = prefs?.result?.result?.value || "";
+  check(
+    /^\{"language":"(auto|en|pt)"\}$/.test(prefsJson) && !/sk-|apiKey/.test(prefsJson),
+    "content script gets the language and nothing else from settings", prefsJson,
+  );
+
   // A second toolbar click toggles the panel, and clicking Analyze/bar again
   // cannot re-run: still exactly one provider call.
   const toggled2 = await worker.send("Runtime.evaluate", { expression: toggleExpr, awaitPromise: true, returnByValue: true });
@@ -409,6 +427,51 @@ try {
   const cu = cacheUi.result?.result?.value || {};
   check(/^1 cached analysis\./.test(cu.before) && /^0 cached analyses\./.test(cu.after) && /Removed 1 cached analysis\./.test(cu.status),
     "settings page shows and clears the cache", JSON.stringify(cu));
+
+  // 11. Interface language: switch to Portuguese on the settings page and
+  // check that the page and the in-page bar follow.
+  const ptUi = await page.send("Runtime.evaluate", {
+    expression: `(async () => {
+      const select = document.getElementById("uiLanguage");
+      select.value = "pt";
+      select.dispatchEvent(new Event("change"));
+      await new Promise((r) => setTimeout(r, 400));
+      return {
+        options: [...select.options].map((o) => o.value),
+        heading: document.querySelector("h2[data-i18n]").textContent,
+        save: document.getElementById("save").textContent,
+        keyNotice: document.querySelector("section.notice p").textContent.slice(0, 40),
+        title: document.title,
+        lang: document.documentElement.lang,
+        stored: (await chrome.storage.local.get("settings")).settings.uiLanguage,
+      };
+    })()`,
+    awaitPromise: true, returnByValue: true,
+  });
+  const pt = ptUi.result?.result?.value || {};
+  check(
+    pt.stored === "pt" && pt.lang === "pt" && pt.heading === "Provedor de IA" && pt.save === "Salvar" &&
+      /^A chave fica no armazenamento/.test(pt.keyNotice || "") && pt.title === "Fact It - Configurações" &&
+      JSON.stringify(pt.options) === JSON.stringify(["auto", "en", "pt"]),
+    "settings page switches to Portuguese", JSON.stringify(pt),
+  );
+
+  await page.send("Page.navigate", { url: `http://127.0.0.1:${WEB_PORT}/` });
+  await sleep(900);
+  const ptBar = await shadowText(page, "bar");
+  // The cache was cleared above, so the bar is idle here.
+  check(
+    /Não analisado/.test(ptBar) && /Analisar/.test(ptBar) && /IA preliminar/.test(ptBar) && !/Not analyzed|AI preliminary/.test(ptBar),
+    "in-page bar follows the interface language", ptBar.slice(0, 120),
+  );
+
+  // Back to English for the remaining checks.
+  await page.send("Page.navigate", { url: `chrome-extension://${extensionId}/options/options.html` });
+  await sleep(500);
+  await page.send("Runtime.evaluate", {
+    expression: `(async () => { const s = document.getElementById("uiLanguage"); s.value = "en"; s.dispatchEvent(new Event("change")); await new Promise((r) => setTimeout(r, 300)); })()`,
+    awaitPromise: true,
+  });
 
   // 8c. No bar on a page without an article.
   await page.send("Page.navigate", { url: `http://127.0.0.1:${WEB_PORT}/plain` });

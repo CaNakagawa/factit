@@ -113,6 +113,18 @@ UNSUPPORTED_WITHIN_ARTICLE), **ok** (everything else, including
 ATTRIBUTED, ALLEGATION_REPORTED and UNCLEAR). Only concerns color a
 claim.
 
+Derived **tag**, one per claim (ADR-009): CONTRADICTION, SUSPICIOUS,
+NEEDS REVIEW, UNSOURCED, ALLEGATION, OPINION, UNCLEAR, DOCUMENTED,
+SOURCED, REPORTED. Concerns outrank support, which outranks evidence
+type, so the tag can never disagree with the claim's color. No tag
+asserts truth or verification; there is deliberately no FACT tag.
+
+Derived **two boxes** (ADR-010): "What it leads you to believe" is
+`inference` when present, otherwise the claim as stated; "What it
+actually says" is the literal statement (when the left box holds the
+inference), then `evidence` (or the evidence type when nothing is
+shown), then `gap`. Both sides are observations about the text.
+
 ## Concerns
 
 | Code | Severity |

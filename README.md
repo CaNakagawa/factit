@@ -75,6 +75,10 @@ Open the extension's **Options** (right-click the Fact It icon, or
 | **Anthropic** | API key. Model defaults to `claude-opus-5`; `claude-sonnet-5` is a cheaper alternative. |
 | **OpenAI-compatible** | Base URL, model name, and a key if the server needs one. Works with DeepSeek (`https://api.deepseek.com/v1`, `deepseek-chat`), Google Gemini (`https://generativelanguage.googleapis.com/v1beta/openai`), and local servers such as Ollama or LM Studio (`http://localhost:11434/v1`). Plain `http` is only allowed for localhost. |
 
+The **Interface language** setting (Automatic, English, Português)
+changes Fact It's own interface; the analysis text follows the language
+of the article.
+
 Click **Test connection** to confirm. The key is stored in your browser
 profile and never shown again; **Remove key** deletes it.
 
@@ -101,6 +105,10 @@ per analysis and a running total in the settings page.
   political, ideological or religious neutrality. Ordinary attributed
   reporting is not a concern; "Fact It did not verify this" is
   metadata, shown once, never a warning.
+- Tags describe the article, never the truth of a claim: DOCUMENTED and
+  SOURCED say what the article shows for it, UNSOURCED and NEEDS REVIEW
+  say what is missing. There is deliberately no "FACT" tag - nothing is
+  externally verified in this version.
 - Claim labels describe the article: "Supported within article",
   "Attributed reporting", "Allegation reported, attributed",
   "Unsupported within article", "Contradicted within article". None of

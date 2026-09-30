@@ -86,7 +86,40 @@
   const BUCKET_LABEL = { concern: "Significant concern", caution: "Concern", ok: "No concern" };
   const BUCKET_COLOR = { concern: "#ef4444", caution: "#f59e0b", ok: "#22c55e" };
 
+  // Short tags shown next to a claim. Each one states something observable
+  // about the text. There is deliberately no "FACT"/"TRUE" tag: nothing is
+  // externally verified in V1, so a tag may describe how the article backs
+  // a claim, never whether it is true (ADR-008, ADR-009).
+  const TAG_COLOR = { alert: "#ef4444", caution: "#f59e0b", ok: "#22c55e", neutral: "#9aa5b1" };
+  const TAGS = {
+    CONTRADICTION: { label: "CONTRADICTION", tone: "alert", title: "The article conflicts with itself or with what it presents" },
+    SUSPICIOUS: { label: "SUSPICIOUS", tone: "alert", title: "A significant signal that this passage may mislead" },
+    NEEDS_REVIEW: { label: "NEEDS REVIEW", tone: "caution", title: "A concrete reason for caution in this passage" },
+    UNSOURCED: { label: "UNSOURCED", tone: "caution", title: "Asserted as fact with nothing shown and no source named" },
+    ALLEGATION: { label: "ALLEGATION", tone: "neutral", title: "An accusation the article reports and attributes to someone else" },
+    OPINION: { label: "OPINION", tone: "neutral", title: "A judgment presented in the article, not a factual statement" },
+    UNCLEAR: { label: "UNCLEAR", tone: "neutral", title: "Cannot be judged from the article's own content" },
+    DOCUMENTED: { label: "DOCUMENTED", tone: "ok", title: "Backed by a document or official record shown in the article" },
+    SOURCED: { label: "SOURCED", tone: "ok", title: "Attributed to a named source or a direct quote in the article" },
+    REPORTED: { label: "REPORTED", tone: "ok", title: "Ordinary reporting; nothing in the content raises a concern" },
+  };
+  const DOCUMENT_EVIDENCE = new Set(["PRIMARY_DOCUMENT", "OFFICIAL_RECORD"]);
+  const SOURCED_EVIDENCE = new Set(["NAMED_SOURCE", "DIRECT_QUOTE", "SECONDARY_SOURCE"]);
+
   const severityOf = (code) => (SIGNIFICANT.has(code) ? "SIGNIFICANT" : "MODERATE");
+
+  // Interface language (ui/i18n.js). Falls back to the English source string
+  // when i18n is not loaded, so these functions stay usable on their own.
+  const t = (s, vars) => {
+    if (root.FactIt && root.FactIt.i18n) return root.FactIt.i18n.t(s, vars);
+    return vars ? String(s).replace(/\{(\w+)\}/g, (m, k) => (Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : m)) : s;
+  };
+
+  // Translated label accessors; the maps above stay the English source.
+  const supportLabel = (code) => t(SUPPORT_LABEL[code] || humanize(code));
+  const evidenceLabel = (code) => t(EVIDENCE_LABEL[code] || humanize(code));
+  const attributionLabel = (code) => t(ATTRIBUTION_LABEL[code] || humanize(code));
+  const bucketLabel = (bucket) => t(BUCKET_LABEL[bucket] || humanize(bucket));
 
   function humanize(code) {
     if (typeof code !== "string" || code === "") return "";
@@ -94,12 +127,12 @@
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
   const pct = (n) => `${Math.round((Number(n) || 0) * 100)}%`;
-  const concernLabel = (code) => CONCERN_LABEL[code] || humanize(code);
+  const concernLabel = (code) => t(CONCERN_LABEL[code] || humanize(code));
 
   function confidenceWord(confidence) {
-    if (confidence >= 0.7) return "high";
-    if (confidence >= 0.4) return "moderate";
-    return "low";
+    if (confidence >= 0.7) return t("high");
+    if (confidence >= 0.4) return t("moderate");
+    return t("low");
   }
 
   // All concern codes that touch a claim: its own plus article-level ones
@@ -123,13 +156,51 @@
   function reasonOf(claim, result) {
     const codes = concernsFor(claim, result);
     if (codes.length) return concernLabel(codes.sort((a, b) => (SIGNIFICANT.has(b) ? 1 : 0) - (SIGNIFICANT.has(a) ? 1 : 0))[0]);
-    return SUPPORT_LABEL[claim.support] || humanize(claim.support);
+    return supportLabel(claim.support);
+  }
+
+  /**
+   * One tag per claim, most specific first. Concerns outrank everything, so
+   * the tag can never disagree with the claim's color.
+   */
+  function tagOf(claim, result) {
+    const codes = concernsFor(claim, result);
+    let code;
+    if (codes.some((c) => CONTRADICTIONS.has(c))) code = "CONTRADICTION";
+    else if (codes.some((c) => SIGNIFICANT.has(c))) code = "SUSPICIOUS";
+    else if (codes.length) code = "NEEDS_REVIEW";
+    else if (claim.support === "INTERNALLY_CONTRADICTED") code = "CONTRADICTION";
+    else if (claim.support === "UNSUPPORTED_WITHIN_ARTICLE") code = "UNSOURCED";
+    else if (claim.type === "OPINION") code = "OPINION";
+    else if (claim.support === "ALLEGATION_REPORTED" || claim.type === "ALLEGATION") code = "ALLEGATION";
+    else if (claim.support === "UNCLEAR") code = "UNCLEAR";
+    else if (DOCUMENT_EVIDENCE.has(claim.evidence_type)) code = "DOCUMENTED";
+    else if (claim.attribution === "CLEAR" && SOURCED_EVIDENCE.has(claim.evidence_type)) code = "SOURCED";
+    else code = "REPORTED";
+    const tag = TAGS[code];
+    return { code, label: t(tag.label), tone: tag.tone, color: TAG_COLOR[tag.tone], title: t(tag.title) };
+  }
+
+  /**
+   * The two-box contrast: what the passage leads a reader to believe versus
+   * what the text actually states and shows. Both sides are observations
+   * about the text; neither is a claim about the author's intent.
+   */
+  function twoBoxes(claim, result) {
+    const inference = claim.inference || "";
+    const says = [];
+    // When the left box holds an invited inference, the literal statement
+    // belongs on the right; otherwise it is already on the left.
+    if (inference) says.push({ key: t("Stated"), text: claim.text });
+    says.push({ key: t("Shown"), text: claim.evidence || evidenceLabel(claim.evidence_type) });
+    if (claim.gap) says.push({ key: t("Not shown"), text: claim.gap });
+    return { tag: tagOf(claim, result), believe: inference || claim.text, fromInference: Boolean(inference), says };
   }
 
   /** Status and its presentation. */
   function status(result) {
     const s = (result.assessment && result.assessment.status) || "NO_SIGNIFICANT_CONCERNS";
-    return { code: s, label: STATUS_LABEL[s] || humanize(s), meaning: STATUS_MEANING[s] || "", color: STATUS_COLOR[s] || "#9aa5b1" };
+    return { code: s, label: t(STATUS_LABEL[s] || humanize(s)), meaning: t(STATUS_MEANING[s] || ""), color: STATUS_COLOR[s] || "#9aa5b1" };
   }
 
   /** Every concern, article-level and claim-level, as one flat list. */
@@ -172,8 +243,8 @@
     const s = status(result);
     const n = counts(result);
     if (s.code === "NO_SIGNIFICANT_CONCERNS") return { label: s.label, detail: "" };
-    if (s.code === "REVIEW_RECOMMENDED") return { label: s.label, detail: `${n.concerns} concern${n.concerns === 1 ? "" : "s"}` };
-    return { label: s.label, detail: `${n.concerns} issue${n.concerns === 1 ? "" : "s"}` };
+    if (s.code === "REVIEW_RECOMMENDED") return { label: s.label, detail: t(n.concerns === 1 ? "{n} concern" : "{n} concerns", { n: n.concerns }) };
+    return { label: s.label, detail: t(n.concerns === 1 ? "{n} issue" : "{n} issues", { n: n.concerns }) };
   }
 
   /**
@@ -197,11 +268,11 @@
     const evidenceTypes = new Set(claims.map((c) => c.evidence_type));
     const items = [];
     const add = (present, label) => items.push({ present: Boolean(present), label });
-    add(article && article.author, "Named author");
-    add(article && article.published_at, "Publication date");
-    add(st.named_sources || attributedClaims > 0, "Named sources for important claims");
-    add(st.primary_references || evidenceTypes.has("PRIMARY_DOCUMENT") || evidenceTypes.has("OFFICIAL_RECORD"), "Primary references (advisories, filings, studies)");
-    add(st.direct_quotes || evidenceTypes.has("DIRECT_QUOTE"), "Direct quotations");
+    add(article && article.author, t("Named author"));
+    add(article && article.published_at, t("Publication date"));
+    add(st.named_sources || attributedClaims > 0, t("Named sources for important claims"));
+    add(st.primary_references || evidenceTypes.has("PRIMARY_DOCUMENT") || evidenceTypes.has("OFFICIAL_RECORD"), t("Primary references (advisories, filings, studies)"));
+    add(st.direct_quotes || evidenceTypes.has("DIRECT_QUOTE"), t("Direct quotations"));
     return { items, attributedClaims, total: claims.length };
   }
 
@@ -212,7 +283,7 @@
   function highlights(result) {
     const claims = Array.isArray(result.claims) ? result.claims : [];
     const concerns = allConcerns(result).map((c) => ({ text: c.claim ? c.claim.text : c.note, category: c.label, severity: c.severity, claim: c.claim }));
-    const ordinary = claims.filter((c) => bucketOf(c, result) === BUCKET.OK).map((c) => ({ text: c.text, label: SUPPORT_LABEL[c.support], claim: c }));
+    const ordinary = claims.filter((c) => bucketOf(c, result) === BUCKET.OK).map((c) => ({ text: c.text, label: supportLabel(c.support), claim: c }));
     return { concerns, ordinary };
   }
 
@@ -247,14 +318,16 @@
     for (const c of claims) byType[c.evidence_type] = (byType[c.evidence_type] || 0) + 1;
     return Object.entries(byType)
       .sort((a, b) => b[1] - a[1])
-      .map(([type, n]) => ({ type, label: EVIDENCE_LABEL[type] || humanize(type), count: n }));
+      .map(([type, n]) => ({ type, label: evidenceLabel(type), count: n }));
   }
 
   root.FactIt = Object.assign(root.FactIt || {}, {
     derive: {
       STATUS_LABEL, STATUS_MEANING, STATUS_COLOR, SUPPORT_LABEL, ATTRIBUTION_LABEL, EVIDENCE_LABEL, CONCERN_LABEL,
       BUCKET, BUCKET_LABEL, BUCKET_COLOR,
-      humanize, pct, confidenceWord, concernLabel, severityOf,
+      TAGS, TAG_COLOR,
+      humanize, pct, confidenceWord, concernLabel, severityOf, tagOf, twoBoxes,
+      supportLabel, evidenceLabel, attributionLabel, bucketLabel,
       concernsFor, bucketOf, reasonOf, status, allConcerns, counts, bannerText, keyFindings,
       sourceTransparency, highlights, sideBySide, evidenceProfile,
     },

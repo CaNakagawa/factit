@@ -9,86 +9,85 @@
 <body>
   <main>
     <h1>Fact It</h1>
-    <p class="tagline">Know what you're reading.</p>
+    <p class="tagline" data-i18n>Know what you're reading.</p>
 
     <form id="settings" autocomplete="off">
-      <h2>AI provider</h2>
-      <p>
-        Fact It sends the extracted article text directly from your browser to
-        the provider you choose, using your own API key (bring your own key).
-        Fact It operates no servers and never sees your key or your articles.
+      <label for="uiLanguage" data-i18n>Interface language</label>
+      <select id="uiLanguage" name="uiLanguage"></select>
+      <p class="hint" data-i18n>Fact It's own interface only. The analysis text follows the language of the article.</p>
+
+      <h2 data-i18n>AI provider</h2>
+      <p data-i18n>
+        Fact It sends the extracted article text directly from your browser to the provider you choose, using your own API key (bring your own key). Fact It operates no servers and never sees your key or your articles.
       </p>
 
-      <label for="provider">Provider</label>
+      <label for="provider" data-i18n>Provider</label>
       <select id="provider" name="provider"></select>
       <p class="hint">
-        Where to get a key, model names and base URLs for each provider:
-        <a href="https://github.com/CaNakagawa/factit/blob/main/docs/PROVIDERS.md" target="_blank" rel="noopener noreferrer">provider reference</a>.
+        <span data-i18n>Where to get a key, model names and base URLs for each provider:</span>
+        <a href="https://github.com/CaNakagawa/factit/blob/main/docs/PROVIDERS.md" target="_blank" rel="noopener noreferrer"><span data-i18n>provider reference</span></a>.
       </p>
 
       <div id="baseUrlField" hidden>
-        <label for="baseUrl">Base URL</label>
+        <label for="baseUrl" data-i18n>Base URL</label>
         <input id="baseUrl" name="baseUrl" type="url" placeholder="http://localhost:11434/v1" spellcheck="false">
-        <p class="hint">Chat Completions endpoint root. Plain http is only allowed for localhost.</p>
+        <p class="hint" data-i18n>Chat Completions endpoint root. Plain http is only allowed for localhost.</p>
       </div>
 
-      <label for="apiKey">API key</label>
+      <label for="apiKey" data-i18n>API key</label>
       <input id="apiKey" name="apiKey" type="password" spellcheck="false">
       <p class="hint" id="apiKeyHint"></p>
 
-      <label for="model">Model</label>
+      <label for="model" data-i18n>Model</label>
       <input id="model" name="model" spellcheck="false">
       <p class="hint" id="modelHint"></p>
 
       <div class="prices">
         <div>
-          <label for="inputPrice">Price per 1M input tokens (USD)</label>
+          <label for="inputPrice" data-i18n>Price per 1M input tokens (USD)</label>
           <input id="inputPrice" name="inputPricePerM" inputmode="decimal" placeholder="e.g. 5">
         </div>
         <div>
-          <label for="outputPrice">Price per 1M output tokens (USD)</label>
+          <label for="outputPrice" data-i18n>Price per 1M output tokens (USD)</label>
           <input id="outputPrice" name="outputPricePerM" inputmode="decimal" placeholder="e.g. 25">
         </div>
       </div>
-      <p class="hint" id="priceHint">Optional. Used only to estimate the cost of each analysis; leave empty to see token counts only.</p>
+      <p class="hint" id="priceHint"></p>
 
       <div class="actions">
-        <button type="submit" id="save">Save</button>
-        <button type="button" id="test">Test connection</button>
-        <button type="button" id="removeKey" class="secondary">Remove key</button>
+        <button type="submit" id="save" data-i18n>Save</button>
+        <button type="button" id="test" data-i18n>Test connection</button>
+        <button type="button" id="removeKey" class="secondary" data-i18n>Remove key</button>
       </div>
       <p id="status" role="status" aria-live="polite"></p>
     </form>
 
     <section>
-      <h2>Usage</h2>
+      <h2 data-i18n>Usage</h2>
       <p id="usageTotals">-</p>
-      <button type="button" id="resetUsage" class="secondary">Reset counters</button>
+      <button type="button" id="resetUsage" class="secondary" data-i18n>Reset counters</button>
     </section>
 
     <section>
-      <h2>Local analysis cache</h2>
+      <h2 data-i18n>Local analysis cache</h2>
       <p>
-        Analyses are kept in this browser profile, keyed by a hash of the
-        article text, so revisiting an unchanged article costs no tokens.
-        Article text itself is not stored. <span id="cacheCount">-</span>
+        <span data-i18n>Analyses are kept in this browser profile, keyed by a hash of the article text, so revisiting an unchanged article costs no tokens. Article text itself is not stored.</span>
+        <span id="cacheCount">-</span>
       </p>
-      <button type="button" id="clearCache" class="secondary">Clear analysis cache</button>
+      <button type="button" id="clearCache" class="secondary" data-i18n>Clear analysis cache</button>
       <p id="cacheStatus" role="status" aria-live="polite"></p>
     </section>
 
     <section class="notice">
-      <h2>About your API key</h2>
-      <p>
-        The key is stored in this browser profile's extension storage. That
-        storage is not encrypted: anyone who can read your browser profile
-        can read the key. Use a key with a spending limit and revoke it if
-        you stop using Fact It.
+      <h2 data-i18n>About your API key</h2>
+      <p data-i18n>
+        The key is stored in this browser profile's extension storage. That storage is not encrypted: anyone who can read your browser profile can read the key. Use a key with a spending limit and revoke it if you stop using Fact It.
       </p>
     </section>
 
-    <p class="meta">Version <span id="version">-</span></p>
+    <p class="meta"><span data-i18n>Version</span> <span id="version">-</span></p>
   </main>
+  <script src="../ui/i18n.js"></script>
   <script type="module" src="options.js"></script>
 </body>
 </html>
