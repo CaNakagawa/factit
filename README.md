@@ -1,157 +1,121 @@
 # Fact It
 
-Know what you're reading.
+**Know what you're reading.** An open-source Chromium extension that
+gives you a preliminary, AI-assisted read of the article in front of
+you — using your own API key, with no Fact It servers in between.
 
-Fact It is an open-source Chromium extension that gives you a
-**preliminary, AI-assisted analysis** of the article you are reading.
-It looks for concrete signals that the content may mislead: internal
-contradictions, headlines the body does not support, serious
-allegations presented as fact, misleading statistics, materially
-missing context, unclear attribution where it matters, and framing
-with observable characteristics.
+![The Fact It bar and summary panel on an article](docs/images/bar-and-summary.jpg)
 
-It is not a truth oracle and it never consults external sources.
-"No significant concerns" is a normal result: it means no meaningful
-warning signals were found, not that the article is true. Fact It not
-having verified a claim is never, by itself, a concern about the
-article.
+Fact It looks for concrete signals that content may mislead: internal
+contradictions, headlines the body does not support, allegations
+presented as fact, misleading statistics, materially missing context
+and unclear attribution.
+
+It is **not a truth oracle** and it never consults external sources.
+*No significant concerns* is a normal result — it means no warning
+signals were found, not that the article is true. Fact It not having
+verified something is never, by itself, a concern about the article.
 
 ## How it works
 
-1. You open an article. Fact It extracts the main text **locally** in
-   your browser (Mozilla Readability) and shows a thin, idle bar at the
-   top of the page. Nothing has been sent anywhere.
-2. You click **Analyze**. The extracted text goes **directly from your
-   browser to the AI provider you configured, with your own API key**
-   (bring your own key). Fact It runs no servers and never sees your
-   key or your articles.
-3. The model's answer is validated against a strict schema and shown
-   in the bar as a **concern status**: *No significant concerns*,
-   *Review recommended · N concerns* or *Significant concerns · N
-   issues*, always labelled *AI preliminary · not externally verified*.
-4. Click **Details** for the **Summary**: the status and what it
-   means, analysis confidence, counters (claims analyzed, significant
-   concerns, observations, contradictions), the verification notice,
-   key findings, observable source transparency and possible framing.
-   From there, **Detailed analysis** opens tabs: Overview (rationale,
-   concerns vs ordinary reporting), Claims (each expandable: status
-   within the article, attribution, article evidence, evidence type,
-   concerns, what is missing, possible reader inference), Evidence
-   (evidence profile and side-by-side for claims with concerns),
-   Framing (observable characteristics) and About (provider, model,
-   prompt version, tokens, cost).
-5. The result is cached locally by a hash of the article text, so
-   revisiting the same article costs nothing. **Re-analyze** is always
-   explicit.
+1. **You open an article.** The main text is extracted **locally**
+   (Mozilla Readability) and a thin idle bar appears. Nothing has left
+   your browser.
+2. **You click Analyze.** The text goes straight from your browser to
+   the provider you configured, with your key. Fact It runs no servers.
+3. **The bar shows a status** — *No significant concerns*, *Review
+   recommended* or *Significant concerns* — always labelled *AI
+   preliminary · not externally verified*.
+4. **Details** opens the summary, and from there the full analysis:
+   claims, evidence, framing and the model/token/cost record.
+5. **The result is cached** by a hash of the article text, so
+   revisiting costs nothing. Re-analyze is always explicit.
 
-```
-Web page -> local extraction -> normalization -> ArticleDocument
-        -> your provider (BYOK) -> LLM -> JSON -> schema validation
-        -> Fact It bar -> details panel -> local cache
-```
+→ [How to read a result](docs/READING_RESULTS.md) — what the statuses,
+tags and labels do and do not mean.
 
 ## Install (developer preview)
 
-Fact It is not on the Chrome Web Store yet.
+Not on the Chrome Web Store yet.
 
-1. Download `factit-<version>.zip` from the releases, or build it with
-   `npm run package`, and unzip it - or clone this repository and use
-   its `extension/` folder directly.
+1. Download `factit-<version>.zip` from the releases and unzip it, or
+   clone this repository and use its `extension/` folder directly.
 2. Open `chrome://extensions`, enable **Developer mode**, click **Load
-   unpacked** and select the folder containing `manifest.json`.
-3. Pin **Fact It** from the extensions menu (puzzle icon).
+   unpacked**, select the folder containing `manifest.json`.
+3. Pin **Fact It** from the extensions menu.
 
-Works in Chrome, Chromium, Brave, Edge and other Chromium browsers
-(Manifest V3, Chrome 116+).
+Chrome, Chromium, Brave, Edge and other Chromium browsers (Manifest V3,
+Chrome 116+).
 
 ## Configure a provider
 
-Open the extension's **Options** (right-click the Fact It icon, or
-`chrome://extensions` -> Details -> Extension options):
+Open **Options** (right-click the Fact It icon → Options):
 
 | Provider | What to enter |
 |---|---|
-| **OpenAI** | API key. Model defaults to `gpt-4o-mini`; change it if you like. |
-| **Anthropic** | API key. Model defaults to `claude-opus-5`; `claude-sonnet-5` is a cheaper alternative. |
-| **OpenAI-compatible** | Base URL, model name, and a key if the server needs one. Works with DeepSeek (`https://api.deepseek.com/v1`, `deepseek-chat`), Google Gemini (`https://generativelanguage.googleapis.com/v1beta/openai`), and local servers such as Ollama or LM Studio (`http://localhost:11434/v1`). Plain `http` is only allowed for localhost. |
+| **OpenAI** | API key. Defaults to `gpt-4o-mini`. |
+| **Anthropic** | API key. Defaults to `claude-opus-5`; `claude-sonnet-5` is cheaper. |
+| **OpenAI-compatible** | Base URL + model name, and a key if the server needs one. DeepSeek, Gemini, Mistral, xAI, Groq, OpenRouter, Moonshot, or a local Ollama / LM Studio. |
 
-The **Interface language** setting (Automatic, English, Português)
-changes Fact It's own interface; the analysis text follows the language
-of the article.
-
-Click **Test connection** to confirm. The key is stored in your browser
+**Test connection** confirms it works. The key is stored in your browser
 profile and never shown again; **Remove key** deletes it.
 
-Where to find keys, model names and base URLs for each provider
-(OpenAI, Anthropic, DeepSeek, Gemini, Mistral, xAI, Groq, OpenRouter,
-Moonshot, Ollama, LM Studio): [docs/PROVIDERS.md](docs/PROVIDERS.md).
+Keys, model names and base URLs for every supported provider:
+[docs/PROVIDERS.md](docs/PROVIDERS.md).
+
+**Interface language** (Automatic / English / Português) changes Fact
+It's own text. The analysis itself follows the article's language.
 
 ## Costs
 
-Each **Analyze** or **Re-analyze** sends the article (up to ~10k
-tokens) and receives a JSON answer (typically 1-3k tokens). Nothing is
-sent on page load, on toolbar clicks, or when a cached result exists.
-Use a key with a spending limit.
+Each analysis sends the article (up to ~10k tokens) and receives JSON
+(usually 1–3k). Nothing is sent on page load, on toolbar clicks, or
+when a cached result exists. Use a key with a spending limit.
 
-The details panel shows the token count of every request. Enter your
-provider's price per 1M input and output tokens in the settings
-(pre-filled for Anthropic models) and Fact It shows the estimated cost
-per analysis and a running total in the settings page.
+Enter your provider's price per 1M tokens in the settings and every
+analysis shows what it cost, with a running total:
 
-## Reading the result
+<img src="docs/images/about-tab.jpg" alt="The About tab, showing provider, model, prompt version, tokens and estimated cost" width="420">
 
-- The **status** reflects the strength of warning signals found in the
-  content. It is **not** a truth verdict and it is **not** about
-  political, ideological or religious neutrality. Ordinary attributed
-  reporting is not a concern; "Fact It did not verify this" is
-  metadata, shown once, never a warning.
-- Tags describe the article, never the truth of a claim: DOCUMENTED and
-  SOURCED say what the article shows for it, UNSOURCED and NEEDS REVIEW
-  say what is missing. There is deliberately no "FACT" tag - nothing is
-  externally verified in this version.
-- Claim labels describe the article: "Supported within article",
-  "Attributed reporting", "Allegation reported, attributed",
-  "Unsupported within article", "Contradicted within article". None of
-  them means "verified".
-- **Framing** is assessed separately and never lowers factual support.
-  A strongly framed article can be accurate; a neutral one can be
-  wrong.
-- **Unverified** and **Insufficient evidence** are normal, honest
-  outcomes.
-- Everything is labelled **AI preliminary**. A future Evidence Engine
-  may add evidence-backed verification; until then, nothing in Fact It
-  claims external verification happened.
+## Architecture
 
-## Privacy and security
+![Fact It architecture: untrusted page, extension contexts, external provider](docs/images/architecture.png)
 
-- No Fact It servers, telemetry or accounts. See [PRIVACY.md](PRIVACY.md).
-- Article text is treated as untrusted data; the model's output is
-  validated and rendered as plain text; the UI lives in a closed
-  shadow root. See [SECURITY.md](SECURITY.md) for the threat model,
-  its test coverage and known limitations.
-- Permissions: only `storage` (settings, key and cache). The extension
-  runs on http/https pages to read the article; it makes network
-  requests only to the provider you configured.
+- **No Fact It backend.** Bring your own key; your content goes only to
+  the provider you chose.
+- **Permissions: `storage` only.** No host permissions, no web
+  accessible resources, no telemetry, no accounts.
+- **The page is untrusted** — article text is data, never instructions;
+  model output is schema-validated and rendered as plain text in a
+  closed shadow root.
+- The dashed path is a Chromium platform property, not a Fact It data
+  flow: `chrome.storage.local` is readable from any content script.
+  No Fact It code reads the key there. See
+  [SECURITY.md](SECURITY.md).
+
+More: [ARCHITECTURE.md](ARCHITECTURE.md) · [PRIVACY.md](PRIVACY.md) ·
+[DECISIONS.md](DECISIONS.md)
 
 ## Development
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for loading the
-unpacked extension, verifying it, tests (`npm test`, `npm run
-test:smoke`), packaging (`npm run package`) and the permission
-rationale. Architecture and decisions: [ARCHITECTURE.md](ARCHITECTURE.md),
-[DECISIONS.md](DECISIONS.md). Releases: [docs/RELEASE.md](docs/RELEASE.md),
+```bash
+npm test            # unit tests
+npm run test:smoke  # headless Chromium end-to-end
+npm run package     # build the zip
+```
+
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for loading the unpacked
+extension, the permission rationale and the test layout.
+Releases: [docs/RELEASE.md](docs/RELEASE.md) ·
 [CHANGELOG.md](CHANGELOG.md).
 
 ## Roadmap
 
-Phase 1 - Browser extension (this release)
-Phase 2 - Evidence Engine
-Phase 3 - Community
-Phase 4 - Reputation / Trust & Abuse
-
+Phase 1 Browser extension (this release) · Phase 2 Evidence Engine ·
+Phase 3 Community · Phase 4 Reputation.
 See [ROADMAP.md](ROADMAP.md) and [PLAN.md](PLAN.md).
 
 ## License
 
-MIT - see [LICENSE](LICENSE). Bundles Mozilla Readability
-(Apache-2.0, `extension/vendor/`).
+MIT — see [LICENSE](LICENSE). Bundles Mozilla Readability (Apache-2.0,
+`extension/vendor/`).

@@ -2,6 +2,16 @@
 
 ## MVP Architecture
 
+![Fact It architecture](docs/images/architecture.png)
+
+Source: [docs/images/architecture.svg](docs/images/architecture.svg).
+Re-render after editing it:
+
+    chromium --headless --screenshot=docs/images/architecture.png \
+      --window-size=1800,1150 docs/images/architecture.svg
+
+Pipeline:
+
 Web Page
    |
    v
@@ -29,6 +39,12 @@ Schema Validation
    |                |
    v                v
 Fact It Bar     Detail Panel
+
+The dashed path in the diagram is a Chromium platform property, not a
+Fact It data flow: chrome.storage.local is readable from any content
+script in the extension. No Fact It code reads the API key there - the
+key is read only by the background service worker and the options page.
+See SECURITY.md.
 
 ## Analysis model (ADR-008)
 

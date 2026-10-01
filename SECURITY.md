@@ -1,5 +1,9 @@
 # Fact It - Security Model
 
+Trust boundaries at a glance:
+
+![Fact It architecture](docs/images/architecture.png)
+
 ## API Keys
 
 API credentials are sensitive.
