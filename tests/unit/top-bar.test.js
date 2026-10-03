@@ -18,7 +18,7 @@ const claim = (over = {}) => ({ id: "c", text: "t", type: "FACTUAL", support: "A
 
 function result(overrides = {}) {
   const base = {
-    schema_version: "2.1",
+    schema_version: "2.2",
     assessment: { status: "NO_SIGNIFICANT_CONCERNS", confidence: 0.45, rationale: "r", verification_level: "AI_PRELIMINARY", external_verification: "NOT_PERFORMED" },
     source_transparency: {},
     claims: [claim(), claim({ id: "c2" }), claim({ id: "c3" })],

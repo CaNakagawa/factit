@@ -2,7 +2,7 @@
 
 Prompt versioning is mandatory.
 
-Current version: 2.1.0 (`PROMPT_VERSION` in extension/analysis/prompt.js).
+Current version: 2.2.0 (`PROMPT_VERSION` in extension/analysis/prompt.js).
 Bump it on any wording change; cached results are keyed on it.
 
 ## Input Separation
@@ -66,7 +66,7 @@ level.
 
 Never confuse the two.
 
-## Analytical posture (2.1.0, ADR-008)
+## Analytical posture (2.2.0, ADR-008, ADR-012)
 
 The prompt states, verbatim: the purpose is not to demand independent
 proof for every statement but to identify meaningful signals that the
@@ -80,6 +80,26 @@ allegation vs reported allegation, headline vs body, statistics,
 conclusion vs evidence, MATERIAL missing context, observable framing,
 any concrete reason to warn). Ordinary claims are compact records; prose
 is spent only on concerns.
+
+2.2.0 adds three rules on top of that posture:
+
+1. **A gate every concern candidate must pass.** A concern must be
+   SPECIFIC (tied to identifiable text), MATERIAL (capable of changing
+   how a reasonable reader understands an important part) and
+   EXPLAINABLE (demonstrable from the text alone, without speculating
+   about intent, motivation, ideology or honesty). If any fails, it is
+   not reported. A short list states what is never a concern by itself,
+   including the model disagreeing with the conclusion or preferring to
+   have written the article differently.
+2. **Classify before evaluating.** The statement kind is decided first,
+   so advice, predictions and the article's own readings of the facts
+   are not judged as assertions the article failed to prove.
+3. **Attributed characterization is a contrast, not a concern.** A
+   headline that attributes a characterization ("X says Y censored Z")
+   reports it accurately. When the body also describes the act being
+   characterized, the model fills `inference` and `gap` on that claim
+   and leaves `concerns` empty, so the reader sees the wording next to
+   the documented act without the article being flagged.
 
 ## Token discipline (2.0.0)
 
@@ -95,6 +115,11 @@ the output characters versus schema 1.2.
 
 ## Changelog
 
+- 2.2.0 - SPECIFIC/MATERIAL/EXPLAINABLE concern gate and the
+  "never a concern by itself" list; statement kinds INTERPRETATION,
+  RECOMMENDATION and PREDICTION classified before evaluation;
+  attributed characterization recorded as a contrast rather than a
+  concern; evidence-to-conclusion proportionality (ADR-012).
 - 2.1.0 - concern detection (ADR-008): no verification-absence field
   or code; within-article support vocabulary incl. ALLEGATION_REPORTED;
   attribution and source transparency; concern codes with severity;

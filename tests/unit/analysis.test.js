@@ -63,7 +63,7 @@ function fakeProvider(text, { finish = "stop", model = "fake-model" } = {}) {
 // ---------------------------------------------------------------- prompt
 
 test("prompt is versioned and keeps instructions separate from the article", () => {
-  assert.equal(PROMPT_VERSION, "2.1.0");
+  assert.equal(PROMPT_VERSION, "2.2.0");
   const { system, input } = buildPrompt(articleDocument());
   assert.equal(system, SYSTEM_PROMPT);
   assert.doesNotMatch(system, /council voted/, "article text must not leak into system prompt");
@@ -98,6 +98,33 @@ test("prompt states the concern-detection principles (ADR-008)", () => {
   }
 });
 
+test("prompt states the 2.2 rules: the concern gate, statement kinds and the characterization contrast (ADR-012)", () => {
+  for (const must of [
+    // the gate every concern candidate has to pass
+    /SPECIFIC \(tied to identifiable text/,
+    /MATERIAL \(capable of changing how a reasonable reader understands/,
+    /EXPLAINABLE \(demonstrable from the text alone/,
+    /If any of the three fails, do not report it/,
+    // what is never a concern on its own
+    /None of these is a concern by itself/,
+    /you disagree with the conclusion/,
+    /you would have written the article differently/,
+    // classify before evaluating
+    /Classify before evaluating/,
+    /RECOMMENDATION \(advice\)/,
+    /PREDICTION \(about the future\)/,
+    /enable MFA to reduce account compromise/,
+    /Do not mark such statements UNSUPPORTED_WITHIN_ARTICLE/,
+    // the attributed characterization: contrast, not concern
+    /attributes it \("X says Y censored Z"\) is reporting the characterization accurately: that is NOT a concern/,
+    /Leave "concerns" empty/,
+    /The single exception is the attributed characterization in question 5/,
+    // evidence-to-conclusion proportionality
+    /correlation presented as causation/,
+    /does not need academic-grade evidence/,
+  ]) assert.match(SYSTEM_PROMPT, must);
+});
+
 test("article text cannot break out of the JSON data envelope", () => {
   const { input } = buildPrompt(articleDocument());
   const parsed = JSON.parse(input.slice(input.indexOf("{")));
@@ -128,7 +155,7 @@ test("valid output passes with forced schema, verification level, external verif
   assert.equal(r.ok, true);
   assert.deepEqual(r.issues, []);
   assert.equal(r.migrated_from, null);
-  assert.equal(r.value.schema_version, "2.1");
+  assert.equal(r.value.schema_version, "2.2");
   assert.equal(r.value.assessment.verification_level, VERIFICATION_LEVEL);
   assert.equal(r.value.assessment.external_verification, EXTERNAL_VERIFICATION);
   assert.equal(r.value.assessment.status, "SIGNIFICANT_CONCERNS", "an unsupported serious allegation is significant");
@@ -157,7 +184,7 @@ test("the model cannot escalate verification, external verification or schema ve
   }));
   assert.equal(r.value.assessment.verification_level, "AI_PRELIMINARY");
   assert.equal(r.value.assessment.external_verification, "NOT_PERFORMED");
-  assert.equal(r.value.schema_version, "2.1");
+  assert.equal(r.value.schema_version, "2.2");
 });
 
 test("numbers are clamped, strings capped, enums matched case-insensitively, ids reassigned", () => {
@@ -281,7 +308,7 @@ test("schema 1.x results migrate to 2.1 without inventing anything", () => {
   const r = validateAnalysis(legacy12());
   assert.equal(r.ok, true);
   assert.equal(r.migrated_from, "1.2");
-  assert.equal(r.value.schema_version, "2.1");
+  assert.equal(r.value.schema_version, "2.2");
   assert.equal(r.value.assessment.rationale, "because");
   const [a, b, c] = r.value.claims;
   assert.equal(a.support, "ARTICLE_SUPPORTED");
@@ -336,7 +363,7 @@ test("analyzeArticle: happy path attaches meta", async () => {
   assert.equal(result.assessment.verification_level, "AI_PRELIMINARY");
   assert.equal(result.assessment.status, "SIGNIFICANT_CONCERNS");
   assert.deepEqual(result.meta, {
-    provider: "fake", model: "fake-model", prompt_version: PROMPT_VERSION, schema_version: "2.1",
+    provider: "fake", model: "fake-model", prompt_version: PROMPT_VERSION, schema_version: "2.2",
     analyzed_at: "2026-09-18T12:00:00.000Z", content_hash: "a".repeat(64), truncated_input: false,
     finish: "stop", usage: { input_tokens: 10, output_tokens: 5 }, validation_issues: [], migrated_from: null,
   });

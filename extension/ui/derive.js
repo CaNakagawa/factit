@@ -1,4 +1,4 @@
-// Fact It - view derivation (schema 2.1, concern detection).
+// Fact It - view derivation (schema 2.2, concern detection).
 //
 // Classic script; exposes FactIt.derive. Pure functions that turn one
 // validated AnalysisResult into everything the bar, the summary panel and
@@ -37,6 +37,15 @@
     UNSUPPORTED_WITHIN_ARTICLE: "Unsupported within article",
     INTERNALLY_CONTRADICTED: "Contradicted within article",
     UNCLEAR: "Unclear from the article",
+  };
+
+  const CLAIM_TYPE_LABEL = {
+    FACTUAL: "Factual claim",
+    ALLEGATION: "Allegation",
+    OPINION: "Opinion",
+    INTERPRETATION: "Interpretation",
+    RECOMMENDATION: "Recommendation",
+    PREDICTION: "Prediction",
   };
 
   const ATTRIBUTION_LABEL = { CLEAR: "Clear", UNCLEAR: "Unclear", NONE: "None" };
@@ -98,6 +107,9 @@
     UNSOURCED: { label: "UNSOURCED", tone: "caution", title: "Asserted as fact with nothing shown and no source named" },
     ALLEGATION: { label: "ALLEGATION", tone: "neutral", title: "An accusation the article reports and attributes to someone else" },
     OPINION: { label: "OPINION", tone: "neutral", title: "A judgment presented in the article, not a factual statement" },
+    ADVICE: { label: "ADVICE", tone: "neutral", title: "A recommendation, not a factual claim the article has to demonstrate" },
+    PREDICTION: { label: "PREDICTION", tone: "neutral", title: "A statement about the future, not about what has already happened" },
+    INTERPRETATION: { label: "INTERPRETATION", tone: "neutral", title: "The article's reading of the facts it presents" },
     UNCLEAR: { label: "UNCLEAR", tone: "neutral", title: "Cannot be judged from the article's own content" },
     DOCUMENTED: { label: "DOCUMENTED", tone: "ok", title: "Backed by a document or official record shown in the article" },
     SOURCED: { label: "SOURCED", tone: "ok", title: "Attributed to a named source or a direct quote in the article" },
@@ -119,6 +131,7 @@
   const supportLabel = (code) => t(SUPPORT_LABEL[code] || humanize(code));
   const evidenceLabel = (code) => t(EVIDENCE_LABEL[code] || humanize(code));
   const attributionLabel = (code) => t(ATTRIBUTION_LABEL[code] || humanize(code));
+  const claimTypeLabel = (code) => t(CLAIM_TYPE_LABEL[code] || humanize(code));
   const bucketLabel = (bucket) => t(BUCKET_LABEL[bucket] || humanize(bucket));
 
   function humanize(code) {
@@ -172,6 +185,9 @@
     else if (claim.support === "INTERNALLY_CONTRADICTED") code = "CONTRADICTION";
     else if (claim.support === "UNSUPPORTED_WITHIN_ARTICLE") code = "UNSOURCED";
     else if (claim.type === "OPINION") code = "OPINION";
+    else if (claim.type === "RECOMMENDATION") code = "ADVICE";
+    else if (claim.type === "PREDICTION") code = "PREDICTION";
+    else if (claim.type === "INTERPRETATION") code = "INTERPRETATION";
     else if (claim.support === "ALLEGATION_REPORTED" || claim.type === "ALLEGATION") code = "ALLEGATION";
     else if (claim.support === "UNCLEAR") code = "UNCLEAR";
     else if (DOCUMENT_EVIDENCE.has(claim.evidence_type)) code = "DOCUMENTED";
@@ -187,14 +203,14 @@
    * about the text; neither is a claim about the author's intent.
    */
   function twoBoxes(claim, result) {
-    const inference = claim.inference || "";
-    const says = [];
-    // When the left box holds an invited inference, the literal statement
-    // belongs on the right; otherwise it is already on the left.
-    if (inference) says.push({ key: t("Stated"), text: claim.text });
+    // `believe` is empty unless the model recorded an inference the wording
+    // invites. Without one there is no contrast to draw, and repeating the
+    // claim on both sides would say nothing (ADR-012).
+    const believe = claim.inference || "";
+    const says = [{ key: t("Stated"), text: claim.text }];
     says.push({ key: t("Shown"), text: claim.evidence || evidenceLabel(claim.evidence_type) });
     if (claim.gap) says.push({ key: t("Not shown"), text: claim.gap });
-    return { tag: tagOf(claim, result), believe: inference || claim.text, fromInference: Boolean(inference), says };
+    return { tag: tagOf(claim, result), believe, contrast: Boolean(believe), fromInference: Boolean(believe), says };
   }
 
   /** Status and its presentation. */
@@ -323,11 +339,11 @@
 
   root.FactIt = Object.assign(root.FactIt || {}, {
     derive: {
-      STATUS_LABEL, STATUS_MEANING, STATUS_COLOR, SUPPORT_LABEL, ATTRIBUTION_LABEL, EVIDENCE_LABEL, CONCERN_LABEL,
+      STATUS_LABEL, STATUS_MEANING, STATUS_COLOR, SUPPORT_LABEL, ATTRIBUTION_LABEL, CLAIM_TYPE_LABEL, EVIDENCE_LABEL, CONCERN_LABEL,
       BUCKET, BUCKET_LABEL, BUCKET_COLOR,
       TAGS, TAG_COLOR,
       humanize, pct, confidenceWord, concernLabel, severityOf, tagOf, twoBoxes,
-      supportLabel, evidenceLabel, attributionLabel, bucketLabel,
+      supportLabel, evidenceLabel, attributionLabel, claimTypeLabel, bucketLabel,
       concernsFor, bucketOf, reasonOf, status, allConcerns, counts, bannerText, keyFindings,
       sourceTransparency, highlights, sideBySide, evidenceProfile,
     },

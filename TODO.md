@@ -38,6 +38,26 @@ real browser with a real key on the packaged zip, then tag v1.0.0.
 
 ## After V1.0
 
+### 1.5.0 (2026-10-03) - statement kinds and the characterization contrast (ADR-012)
+
+- Schema 2.2 / prompt 2.2.0. New claim types INTERPRETATION,
+  RECOMMENDATION and PREDICTION, classified before the statement is
+  judged, with neutral tags (ADVICE, PREDICTION, INTERPRETATION).
+- An attributed characterization in a headline records `inference` +
+  `gap` with no concern: the status, counters and claim colour do not
+  move, and the reader sees the wording next to the documented act.
+  This is the only case where those fields exist without a concern.
+- The two boxes render only when there is a real contrast; an ordinary
+  claim no longer repeats itself on both sides.
+- Concern gate (SPECIFIC + MATERIAL + EXPLAINABLE), an explicit list of
+  what is never a concern by itself, and evidence-to-conclusion
+  proportionality.
+- 156 unit tests including CASE 8 and CASE 9 in the ADR-008 regression
+  suite. Cached 2.1 results stay valid; nothing is re-analyzed.
+- Cost: the system prompt grew ~30% (+590 input tokens per analysis).
+  Not covered: no provider sets `cache_control`, so it is paid on every
+  request; prompt caching is the obvious place to recover it.
+
 ### 1.4.0 (2026-09-30) - tags, two boxes, Portuguese
 
 - Two-box contrast per claim (ADR-010) and one tag per claim (ADR-009),

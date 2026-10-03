@@ -393,3 +393,110 @@ the privileged context (SECURITY.md).
 Analysis text is never translated: it is the model's output in the
 article's language.
 
+---
+
+## ADR-012 - Classify the statement before judging it; an attributed characterization is a contrast, not a concern
+
+### Context
+
+Two failures surfaced on real articles after ADR-008 removed the
+over-warning.
+
+**1. Everything was judged as an assertion.** `type` was FACTUAL |
+ALLEGATION | OPINION, so advice ("enable MFA to reduce account
+compromise"), predictions and the article's own readings of the facts
+were evaluated as factual claims the article had to demonstrate. The
+natural result is UNSUPPORTED_WITHIN_ARTICLE on a sentence that was
+never an assertion about the world - a false positive of exactly the
+kind ADR-008 set out to remove.
+
+**2. The two boxes (ADR-010) were empty where they mattered most.**
+`inference` and `gap` were requested ONLY when a claim carried a
+concern. On an article with no concerns every claim rendered "What it
+leads you to believe" = the claim text, plus a disclaimer - fifteen
+pairs of boxes carrying no information.
+
+The case that exposed it: a report headlined "X says Lula used 'friends
+in the judiciary' to censor the debate", whose body also documents the
+ruling (a podium bearing a name, and questions to an absent candidate,
+were barred under rules the campaigns had signed). Fact It extracted
+both, correctly returned NO_SIGNIFICANT_CONCERNS - and never connected
+them. A reader who stops at the bar learns nothing about the distance
+between the word in the headline and the act in the body.
+
+### Decision
+
+**Classify before evaluating.** `CLAIM_TYPES` gains INTERPRETATION,
+RECOMMENDATION and PREDICTION. The prompt decides the kind of statement
+first and is told that advice and predictions are not unproven factual
+claims. Their tags (ADVICE, PREDICTION, INTERPRETATION) are neutral: a
+statement kind is never a warning. An unknown value still falls back to
+FACTUAL, so the validator cannot be destabilised by a new label.
+
+**An attributed characterization is a contrast, not a concern.** When a
+headline attributes a characterization and the body describes the act
+being characterized, the model records `inference` (what the wording
+invites the reader to take away) and `gap` (the narrower act the
+article documents) on that claim and leaves `concerns` empty. The
+status, the counters and the claim's colour do not move. This is the
+single case where `inference` and `gap` exist without a concern.
+
+**The contrast is drawn only when there is one.** `twoBoxes` returns
+`believe: ""` with no inference, and the panel renders no boxes at all
+in that case; the detail list already carries evidence, gap and
+inference for every claim.
+
+**A gate for concern candidates.** Every candidate must be SPECIFIC,
+MATERIAL and EXPLAINABLE, and a short list states what is never a
+concern by itself - including the model disagreeing with the conclusion
+or preferring to have written the article differently.
+
+Schema 2.2, prompt 2.2.0.
+
+### Alternatives
+
+**A new concern code (CONTESTED_CHARACTERIZATION or similar).**
+Rejected. It would turn an article yellow for accurately attributed
+reporting, which is ADR-008 reversed, and it would put Fact It in the
+position of ruling on politically contested vocabulary. Principle 23
+already says attribution of someone else's allegation is not the
+article's own unsupported claim.
+
+**Reuse HEADLINE_OVERSTATEMENT.** Rejected for the attributed case for
+the same reason. It stays for the case it was written for: the article
+itself overstating its own body.
+
+**Leave it to calibration.** The schema already had
+HEADLINE_OVERSTATEMENT and MISLEADING_FRAMING, and the model fired
+neither. But the correct outcome here is *not* a concern, so better
+calibration of concern codes could not produce it. A contrast was the
+missing output, not a stricter threshold.
+
+**Translate the characterization for the reader.** Rejected: deciding
+whether "censorship" is a fair word for a ruling is the truth judgement
+Fact It does not make (principles 11, 24).
+
+### Tradeoffs
+
+The system prompt grows about 30% (7,849 -> 10,221 chars, roughly +590
+input tokens per analysis). That is a real cost on every request, paid
+for three capabilities; the alternative drafted for comparison cost
+about four times as much. No provider adapter sets `cache_control`, so
+it is paid in full each time - prompt caching is the obvious place to
+recover it later.
+
+There is no neutral detector for "contested". The rule is deliberately
+anchored to an observable test - does the body describe a specific act
+that the headline's word summarizes? - and never to a list of loaded
+words, which would fire on legitimate use.
+
+Results cached under 2.1 stay valid: 2.2 only adds claim types and
+relaxes when two fields may be filled, so nothing needs migrating and
+no re-analysis is forced. An older cached result simply shows no
+contrast; Re-analyze remains explicit.
+
+### Consequences
+
+Regression cases CASE 8 (characterization contrast without a concern)
+and CASE 9 (advice, predictions, interpretations) join the ADR-008
+suite in tests/unit/concerns.test.js.

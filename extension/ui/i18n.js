@@ -85,6 +85,9 @@
     UNSOURCED: "SEM FONTE",
     ALLEGATION: "ACUSAÇÃO",
     OPINION: "OPINIÃO",
+    ADVICE: "RECOMENDAÇÃO",
+    PREDICTION: "PREVISÃO",
+    INTERPRETATION: "INTERPRETAÇÃO",
     UNCLEAR: "INCERTO",
     DOCUMENTED: "DOCUMENTADO",
     SOURCED: "COM FONTE",
@@ -95,6 +98,11 @@
     "Asserted as fact with nothing shown and no source named": "Afirmado como fato, sem nada apresentado e sem fonte identificada",
     "An accusation the article reports and attributes to someone else": "Acusação que o artigo relata e atribui a outra pessoa",
     "A judgment presented in the article, not a factual statement": "Um juízo apresentado no artigo, não uma afirmação factual",
+    "A recommendation, not a factual claim the article has to demonstrate":
+      "Uma recomendação, não uma afirmação factual que o artigo precise demonstrar",
+    "A statement about the future, not about what has already happened":
+      "Uma afirmação sobre o futuro, não sobre o que já aconteceu",
+    "The article's reading of the facts it presents": "A leitura que o artigo faz dos fatos que apresenta",
     "Cannot be judged from the article's own content": "Não dá para julgar pelo conteúdo do próprio artigo",
     "Backed by a document or official record shown in the article": "Apoiado em documento ou registro oficial apresentado no artigo",
     "Attributed to a named source or a direct quote in the article": "Atribuído a uma fonte identificada ou citação direta no artigo",
@@ -106,8 +114,6 @@
     Stated: "Afirma",
     Shown: "Mostra",
     "Not shown": "Não mostra",
-    "This is the claim as the article puts it; nothing further is implied.":
-      "Esta é a afirmação como o artigo a coloca; nada além disso é sugerido.",
 
     // ------------------------------------------------------------- bar
     "Not analyzed": "Não analisado",
@@ -215,6 +221,9 @@
     Allegation: "Acusação",
     Opinion: "Opinião",
     "Factual claim": "Afirmação factual",
+    Interpretation: "Interpretação",
+    Recommendation: "Recomendação",
+    Prediction: "Previsão",
 
     "Evidence presented by the article": "Evidências apresentadas pelo artigo",
     "No claims to profile.": "Nenhuma afirmação para perfilar.",
@@ -224,8 +233,8 @@
     "No claim carries a concern, so there is nothing to put side by side. Ordinary reporting is not listed here.":
       "Nenhuma afirmação carrega preocupação, então não há nada para comparar lado a lado. Relatos comuns não aparecem aqui.",
     "No claims to compare.": "Nenhuma afirmação para comparar.",
-    "The left box is what the passage invites a reader to take away; the right box is what the text states and shows. Both are observations about the text, not claims about the author's intent or about readers.":
-      "A caixa da esquerda é o que o trecho convida o leitor a concluir; a da direita é o que o texto afirma e mostra. Ambas são observações sobre o texto, não afirmações sobre a intenção do autor ou sobre os leitores.",
+    "Where a passage invites a reading its own text does not establish, that reading is shown on the left and what the text states and shows on the right. Both are observations about the text, not claims about the author's intent or about readers.":
+      "Quando um trecho convida a uma leitura que o próprio texto não estabelece, essa leitura aparece à esquerda e o que o texto afirma e mostra, à direita. Ambas são observações sobre o texto, não afirmações sobre a intenção do autor ou sobre os leitores.",
 
     "Possible {type} framing": "Enquadramento {type} possível",
     "{strength} · Confidence: {pct}": "{strength} · Confiança: {pct}",

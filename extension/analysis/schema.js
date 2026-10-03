@@ -1,4 +1,4 @@
-// Fact It - AnalysisResult schema 2.1 (concern detection).
+// Fact It - AnalysisResult schema 2.2 (concern detection).
 //
 // Enumerations and limits from docs/ANALYSIS_SCHEMA.md. Used by the prompt
 // (to describe the expected output) and by the validator (to enforce it).
@@ -9,9 +9,9 @@
 // result. Every fact about a claim is generated once, on the claim
 // (ADR-007); the UI derives all views from those records.
 
-export const ANALYSIS_SCHEMA_VERSION = "2.1";
+export const ANALYSIS_SCHEMA_VERSION = "2.2";
 // Older results the cache may still hold; the validator migrates them.
-export const ACCEPTED_SCHEMA_VERSIONS = Object.freeze(["1.0", "1.1", "1.2", "2.0", "2.1"]);
+export const ACCEPTED_SCHEMA_VERSIONS = Object.freeze(["1.0", "1.1", "1.2", "2.0", "2.1", "2.2"]);
 
 // The only verification level the extension can produce. A future Evidence
 // Engine would introduce another value; the validator always forces this
@@ -29,10 +29,16 @@ export const STATUSES = Object.freeze([
   "SIGNIFICANT_CONCERNS",
 ]);
 
+// What kind of statement this is. Classifying first stops advice,
+// predictions and readings of the facts from being judged as if they were
+// assertions the article must prove (ADR-012).
 export const CLAIM_TYPES = Object.freeze([
   "FACTUAL", // a statement of fact the article makes or reports
   "ALLEGATION", // an accusation; see `support` for whether the article asserts it or reports it
   "OPINION", // a judgment; only listed when presented as if it were fact
+  "INTERPRETATION", // the article's reading of facts it presents
+  "RECOMMENDATION", // advice; not a factual claim the article must demonstrate
+  "PREDICTION", // a statement about the future; not a claim about what happened
 ]);
 
 // Status of the claim WITHIN THE ARTICLE. Says nothing about the world.
@@ -142,8 +148,8 @@ export const OUTPUT_SHAPE = `{
       "evidence_type": "${EVIDENCE_TYPES.join('" | "')}",
       "evidence": "<what the article presents for it, a few words for ordinary claims, max ${LIMITS.MAX_FIELD_CHARS} chars; \\"\\" if nothing>",
       "concerns": ["<zero or more of: ${CONCERN_TYPES.join(", ")}>"],
-      "gap": "<ONLY when there is a concern: what is missing or inconsistent, max ${LIMITS.MAX_FIELD_CHARS} chars; otherwise \\"\\">",
-      "inference": "<ONLY when there is a concern: a possible reader inference the text invites but does not establish, max ${LIMITS.MAX_FIELD_CHARS} chars; otherwise \\"\\">"
+      "gap": "<only with a concern, or for an attributed characterization (question 5): what is missing, narrower or inconsistent, max ${LIMITS.MAX_FIELD_CHARS} chars; otherwise \\"\\">",
+      "inference": "<only with a concern, or for an attributed characterization (question 5): a possible reader inference the text invites but does not establish, max ${LIMITS.MAX_FIELD_CHARS} chars; otherwise \\"\\">"
     }
   ],
   "concerns": [

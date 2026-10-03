@@ -77,6 +77,7 @@
     .panel .claim dd { margin: 0; color: #e4e7eb; }
     .panel .tag { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .06em; border: 1px solid; border-radius: 3px; padding: 0 5px; margin-right: 6px; white-space: nowrap; }
     .panel .boxes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 10px; }
+    .panel .boxes.single { grid-template-columns: 1fr; }
     .panel .box { border: 1px solid #3e4c59; border-left-width: 3px; border-radius: 4px; padding: 8px; font-size: 12px; box-sizing: border-box; min-width: 0; }
     .panel .box.believe { border-left-color: #f59e0b; }
     .panel .box.says { border-left-color: #7fb3c8; }
@@ -140,10 +141,12 @@
    */
   function twoBoxesEl(claim, result) {
     const tb = d().twoBoxes(claim, result);
-    const wrap = el("div", "boxes");
-    const left = el("div", "box believe");
-    left.append(el("h5", "", t("What it leads you to believe")), el("p", "", tb.believe));
-    if (!tb.fromInference) left.append(el("p", "muted tiny", t("This is the claim as the article puts it; nothing further is implied.")));
+    const wrap = el("div", tb.contrast ? "boxes" : "boxes single");
+    if (tb.contrast) {
+      const left = el("div", "box believe");
+      left.append(el("h5", "", t("What it leads you to believe")), el("p", "", tb.believe));
+      wrap.append(left);
+    }
     const right = el("div", "box says");
     right.append(el("h5", "", t("What it actually says")));
     for (const line of tb.says) {
@@ -151,7 +154,7 @@
       p.append(el("span", "k", line.key), document.createTextNode(line.text));
       right.append(p);
     }
-    wrap.append(left, right);
+    wrap.append(right);
     return wrap;
   }
 
@@ -430,13 +433,13 @@
     head.append(tagChip(c, result), document.createTextNode(D.reasonOf(c, result)));
     body.append(head, el("div", "", c.text));
     button.append(mark(bucket), body, el("span", "chev", "⌄"));
-    const boxes = twoBoxesEl(c, result);
-    boxes.hidden = true;
+    const boxes = D.twoBoxes(c, result).contrast ? twoBoxesEl(c, result) : null;
+    if (boxes) boxes.hidden = true;
     const dl = el("dl");
     dl.hidden = true;
     const row = (k, v) => { dl.append(el("dt", "", k), el("dd", "", v)); };
     row(t("Within the article"), D.supportLabel(c.support));
-    row(t("Type"), c.type === "ALLEGATION" ? t("Allegation") : c.type === "OPINION" ? t("Opinion") : t("Factual claim"));
+    row(t("Type"), D.claimTypeLabel(c.type));
     row(t("Attribution"), D.attributionLabel(c.attribution));
     row(t("Article evidence"), c.evidence || t("None shown"));
     row(t("Evidence type"), D.evidenceLabel(c.evidence_type));
@@ -447,11 +450,13 @@
     row(t("External verification"), t("Not performed (metadata; not a concern)"));
     button.addEventListener("click", () => {
       dl.hidden = !dl.hidden;
-      boxes.hidden = dl.hidden;
+      if (boxes) boxes.hidden = dl.hidden;
       button.setAttribute("aria-expanded", String(!dl.hidden));
       button.querySelector(".chev").textContent = dl.hidden ? "⌄" : "⌃";
     });
-    item.append(button, boxes, dl);
+    item.append(button);
+    if (boxes) item.append(boxes);
+    item.append(dl);
     return item;
   }
 
@@ -488,7 +493,7 @@
       sbs.append(row);
     }
     wrap.append(sbs);
-    wrap.append(el("p", "muted small", t("The left box is what the passage invites a reader to take away; the right box is what the text states and shows. Both are observations about the text, not claims about the author's intent or about readers.")));
+    wrap.append(el("p", "muted small", t("Where a passage invites a reading its own text does not establish, that reading is shown on the left and what the text states and shows on the right. Both are observations about the text, not claims about the author's intent or about readers.")));
     return wrap;
   }
 

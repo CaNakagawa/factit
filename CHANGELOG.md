@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.5.0 - 2026-10-03
+
+- Analysis classifies the kind of statement before judging it: new
+  claim types INTERPRETATION, RECOMMENDATION and PREDICTION, with
+  neutral tags. Advice such as "enable MFA" is no longer treated as a
+  factual claim the article failed to prove (ADR-012)
+- A headline that attributes a characterization ("X says Y censored
+  Z") is reported, not flagged. When the body describes the act being
+  characterized, the claim now carries the contrast - what the wording
+  invites you to take away, next to what the article documents -
+  while the status, counters and colour stay unchanged (ADR-012)
+- The two boxes are drawn only when there is a real contrast. An
+  ordinary claim no longer renders "What it leads you to believe"
+  repeating itself with a disclaimer
+- Every concern candidate must now pass a SPECIFIC + MATERIAL +
+  EXPLAINABLE test, and the prompt lists what is never a concern by
+  itself, including the model disagreeing with the conclusion
+- Analysis also checks that conclusions stay proportional to the
+  evidence the article presents (correlation as causation, one case
+  generalized, possibility as certainty)
+- Schema 2.2, prompt 2.2.0. Cached 2.1 results stay valid and are not
+  re-analyzed
+
 ## 1.4.0 - 2026-09-30
 
 - Claims: two boxes contrasting **what it leads you to believe** with

@@ -1,6 +1,6 @@
 # Fact It - AnalysisResult
 
-Schema Version: 2.1 (claim-centric, concern detection; see DECISIONS.md ADR-007 and ADR-008)
+Schema Version: 2.2 (claim-centric, concern detection; see DECISIONS.md ADR-007, ADR-008 and ADR-012)
 
 Produced by `analyzeArticle` (extension/analysis/engine.js) from the
 model's JSON after validation (extension/analysis/validator.js).
@@ -11,7 +11,7 @@ generated twice.
 
 ```
 {
-  "schema_version": "2.1",
+  "schema_version": "2.2",
   "assessment": {
     "status": "NO_SIGNIFICANT_CONCERNS",
     "confidence": 0.0,
@@ -40,7 +40,7 @@ generated twice.
   "framing": { "detected": false, "type": null, "strength": null, "confidence": 0.0, "observations": [] },
   "summary": "",
   "meta": {
-    "provider": "", "model": "", "prompt_version": "2.1.0", "schema_version": "2.1",
+    "provider": "", "model": "", "prompt_version": "2.2.0", "schema_version": "2.2",
     "analyzed_at": "<ISO 8601>", "content_hash": "<sha256>", "truncated_input": false,
     "finish": "stop", "usage": { "input_tokens": 0, "output_tokens": 0 } | null,
     "validation_issues": [], "migrated_from": null | "1.0" | "1.1" | "1.2" | "2.0"
@@ -94,14 +94,14 @@ and is shown once in the summary and in About.
 |---|---|---|
 | `id` | `c1..c15` | Assigned by the validator. |
 | `text` | ≤ 240 chars | The claim, quoted or closely paraphrased. |
-| `type` | `FACTUAL`, `ALLEGATION`, `OPINION` | Opinion only when presented as if it were fact. |
+| `type` | `FACTUAL`, `ALLEGATION`, `OPINION`, `INTERPRETATION`, `RECOMMENDATION`, `PREDICTION` | The kind of statement, classified before it is judged (ADR-012). Opinion only when presented as if it were fact. Advice and predictions are not claims the article must demonstrate; an unknown value falls back to `FACTUAL`. |
 | `support` | `ARTICLE_SUPPORTED`, `PARTIALLY_ARTICLE_SUPPORTED`, `ATTRIBUTED`, `ALLEGATION_REPORTED`, `UNSUPPORTED_WITHIN_ARTICLE`, `INTERNALLY_CONTRADICTED`, `UNCLEAR` | Status within the article. `ATTRIBUTED` is ordinary reporting; `ALLEGATION_REPORTED` is the article accurately reporting that someone else alleges something. Neither is a concern. |
 | `attribution` | `CLEAR`, `UNCLEAR`, `NONE` | Whether the source is named. Observable; not reputation. |
 | `evidence_type` | `PRIMARY_DOCUMENT`, `OFFICIAL_RECORD`, `NAMED_SOURCE`, `DIRECT_QUOTE`, `SECONDARY_SOURCE`, `ANONYMOUS_SOURCE`, `UNIDENTIFIED_REPORT`, `ARTICLE_ASSERTION`, `NO_EVIDENCE_SHOWN`, `UNKNOWN` | The kind of support the article **presents**. |
 | `evidence` | ≤ 160 chars | A few words for ordinary claims. |
 | `concerns` | ≤ 3 codes | Concern codes that apply to this claim. Empty for ordinary claims. |
-| `gap` | ≤ 160 chars | Only with a concern: what is missing or inconsistent. |
-| `inference` | ≤ 160 chars | Only with a concern: a *possible reader inference* the text invites but does not establish. Never intent. |
+| `gap` | ≤ 160 chars | With a concern, or for an attributed characterization (ADR-012): what is missing, narrower or inconsistent. |
+| `inference` | ≤ 160 chars | With a concern, or for an attributed characterization (ADR-012): a *possible reader inference* the text invites but does not establish. Never intent. |
 
 UI labels: Supported within article · Partially supported within article ·
 Attributed reporting · Allegation reported, attributed · Unsupported
@@ -114,16 +114,21 @@ ATTRIBUTED, ALLEGATION_REPORTED and UNCLEAR). Only concerns color a
 claim.
 
 Derived **tag**, one per claim (ADR-009): CONTRADICTION, SUSPICIOUS,
-NEEDS REVIEW, UNSOURCED, ALLEGATION, OPINION, UNCLEAR, DOCUMENTED,
-SOURCED, REPORTED. Concerns outrank support, which outranks evidence
-type, so the tag can never disagree with the claim's color. No tag
-asserts truth or verification; there is deliberately no FACT tag.
+NEEDS REVIEW, UNSOURCED, ALLEGATION, OPINION, ADVICE, PREDICTION,
+INTERPRETATION, UNCLEAR, DOCUMENTED, SOURCED, REPORTED. Concerns
+outrank support, which outranks statement kind, which outranks
+evidence type, so the tag can never disagree with the claim's color.
+ADVICE, PREDICTION and INTERPRETATION are neutral: a statement kind is
+never a warning. No tag asserts truth or verification; there is
+deliberately no FACT tag.
 
-Derived **two boxes** (ADR-010): "What it leads you to believe" is
-`inference` when present, otherwise the claim as stated; "What it
-actually says" is the literal statement (when the left box holds the
-inference), then `evidence` (or the evidence type when nothing is
-shown), then `gap`. Both sides are observations about the text.
+Derived **two boxes** (ADR-010, ADR-012): the contrast is drawn only
+when `inference` is present. "What it leads you to believe" is that
+inference; "What it actually says" is the literal statement, then
+`evidence` (or the evidence type when nothing is shown), then `gap`.
+With no inference there is no contrast to draw and the boxes are not
+rendered at all: repeating the claim on both sides would say nothing.
+Both sides are observations about the text.
 
 ## Concerns
 

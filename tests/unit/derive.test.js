@@ -15,7 +15,7 @@ const claim = (over = {}) => ({
   evidence_type: "NAMED_SOURCE", evidence: "e", concerns: [], gap: "", inference: "", ...over,
 });
 const result = (claims, concerns = [], status = null, framing = { detected: false }) => ({
-  schema_version: "2.1",
+  schema_version: "2.2",
   assessment: {
     status: status || (concerns.some((c) => c.severity === "SIGNIFICANT") || claims.some((c) => (c.concerns || []).some((x) => D.severityOf(x) === "SIGNIFICANT")) ? "SIGNIFICANT_CONCERNS"
       : (concerns.length || claims.some((c) => (c.concerns || []).length)) ? "REVIEW_RECOMMENDED" : "NO_SIGNIFICANT_CONCERNS"),
@@ -166,12 +166,33 @@ test("twoBoxes: inference on the left moves the statement to the right", () => {
 
   const plain = claim({ text: "The council voted 7-2.", evidence: "session record" });
   const tb2 = D.twoBoxes(plain, result([plain]));
-  assert.equal(tb2.believe, "The council voted 7-2.", "with no inference the left box is the claim as put");
-  assert.equal(tb2.fromInference, false);
-  assert.deepEqual(tb2.says, [{ key: "Shown", text: "session record" }]);
+  assert.equal(tb2.believe, "", "with no invited reading there is no contrast to draw");
+  assert.equal(tb2.contrast, false);
+  assert.deepEqual(tb2.says, [
+    { key: "Stated", text: "The council voted 7-2." },
+    { key: "Shown", text: "session record" },
+  ]);
 
   const nothing = claim({ text: "X happened.", evidence: "", evidence_type: "NO_EVIDENCE_SHOWN", support: "UNSUPPORTED_WITHIN_ARTICLE" });
-  assert.deepEqual(D.twoBoxes(nothing, result([nothing])).says, [{ key: "Shown", text: "No evidence shown" }]);
+  assert.deepEqual(D.twoBoxes(nothing, result([nothing])).says, [
+    { key: "Stated", text: "X happened." },
+    { key: "Shown", text: "No evidence shown" },
+  ]);
+});
+
+test("statement kind is classified before it is judged: advice and predictions are not unsupported claims", () => {
+  const advice = claim({ text: "Enable MFA to reduce account compromise.", type: "RECOMMENDATION", support: "ARTICLE_SUPPORTED", evidence: "vendor guidance" });
+  const prediction = claim({ id: "c2", text: "Attacks will increase next year.", type: "PREDICTION", support: "ATTRIBUTED", evidence: "analyst quoted" });
+  const reading = claim({ id: "c3", text: "The pattern points to a coordinated campaign.", type: "INTERPRETATION", support: "ARTICLE_SUPPORTED", evidence: "telemetry described" });
+  const r = result([advice, prediction, reading]);
+  assert.deepEqual([advice, prediction, reading].map((c) => D.tagOf(c, r).code), ["ADVICE", "PREDICTION", "INTERPRETATION"]);
+  for (const c of [advice, prediction, reading]) {
+    assert.equal(D.tagOf(c, r).tone, "neutral", "a statement kind is never a warning");
+    assert.equal(D.bucketOf(c, r), D.BUCKET.OK);
+  }
+  assert.equal(D.status(r).code, "NO_SIGNIFICANT_CONCERNS");
+  assert.equal(D.counts(r).concerns, 0);
+  assert.equal(D.claimTypeLabel("RECOMMENDATION"), "Recommendation");
 });
 
 test("interface language: labels, tags and counts translate; analysis text is untouched", () => {

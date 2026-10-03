@@ -1,4 +1,5 @@
-// ADR-008 regression cases: concern detection, not verification absence.
+// ADR-008 / ADR-012 regression cases: concern detection, not verification
+// absence; and statement kind classified before it is judged.
 // Each case is a model output shaped as the prompt requests, run through
 // the validator and the UI derivation exactly as the extension does.
 // (LLM behaviour itself cannot be unit-tested; the prompt wording that
@@ -163,6 +164,66 @@ test("CASE 7: no concerns found -> empty lists accepted and displayed normally",
   const empty = run(output({ claims: [] }));
   assert.equal(empty.assessment.status, "NO_SIGNIFICANT_CONCERNS");
   assert.equal(D.counts(empty).total, 0);
+});
+
+test("CASE 8: headline carries a characterization attributed to a source -> contrast shown, no concern (ADR-012)", () => {
+  // The article reports that someone called a ruling censorship, and also
+  // describes the ruling. Reporting the characterization accurately is not
+  // a concern; the reader is shown the word next to the documented act.
+  const v = run(output({
+    claims: [
+      claim("Flávio said Lula used 'friends in the judiciary' to censor the debate.", {
+        type: "ALLEGATION", support: "ALLEGATION_REPORTED", attribution: "CLEAR",
+        evidence_type: "DIRECT_QUOTE", evidence: "direct quote from the live stream",
+        inference: "That the debate was censored.",
+        gap: "The ruling described bars a podium bearing a name and questions to an absent candidate.",
+      }),
+      claim("The ruling prohibited a podium bearing Lula's name and questions to the absent candidate.", {
+        evidence_type: "OFFICIAL_RECORD", evidence: "court decision, reported",
+      }),
+    ],
+    assessment: { confidence: 0.8, rationale: "Accusations are attributed and the ruling is described." },
+  }));
+
+  // Nothing moves: the status, the counters and the claim colour are unchanged.
+  assert.equal(v.assessment.status, "NO_SIGNIFICANT_CONCERNS");
+  assert.equal(v.concerns.length, 0);
+  assert.deepEqual(v.claims[0].concerns, []);
+  assert.equal(D.bucketOf(v.claims[0], v), "ok");
+  assert.equal(D.counts(v).concerns, 0);
+  assert.equal(D.counts(v).flagged, 0);
+  assert.deepEqual(D.bannerText(v), { label: "No significant concerns", detail: "" });
+  assert.equal(D.tagOf(v.claims[0], v).code, "ALLEGATION");
+  assert.equal(D.tagOf(v.claims[0], v).tone, "neutral");
+
+  // But the contrast survives validation and reaches the view.
+  const tb = D.twoBoxes(v.claims[0], v);
+  assert.equal(tb.contrast, true);
+  assert.equal(tb.believe, "That the debate was censored.");
+  assert.deepEqual(tb.says.map((x) => x.key), ["Stated", "Shown", "Not shown"]);
+  assert.equal(D.sideBySide(v).rows.length, 1, "it is listed for comparison although it carries no concern");
+  assert.equal(D.keyFindings(v).length, 0, "and it is not a key finding");
+});
+
+test("CASE 9: advice, predictions and interpretations are not unproven factual claims (ADR-012)", () => {
+  const v = run(output({
+    claims: [
+      claim("Enable MFA to reduce account compromise risk.", { type: "RECOMMENDATION", support: "ARTICLE_SUPPORTED", evidence: "vendor guidance" }),
+      claim("Attacks of this kind will increase next year.", { type: "PREDICTION", evidence: "analyst quoted" }),
+      claim("The pattern points to one coordinated campaign.", { type: "INTERPRETATION", support: "ARTICLE_SUPPORTED", evidence: "telemetry described" }),
+    ],
+  }));
+  assert.equal(v.assessment.status, "NO_SIGNIFICANT_CONCERNS");
+  assert.deepEqual(v.claims.map((c) => c.type), ["RECOMMENDATION", "PREDICTION", "INTERPRETATION"]);
+  assert.deepEqual(v.claims.map((c) => D.tagOf(c, v).code), ["ADVICE", "PREDICTION", "INTERPRETATION"]);
+  for (const c of v.claims) {
+    assert.equal(D.bucketOf(c, v), "ok", "a statement kind is never a warning");
+    assert.equal(D.tagOf(c, v).tone, "neutral");
+  }
+  assert.equal(D.counts(v).flagged, 0);
+  // An unknown kind still falls back to FACTUAL rather than failing.
+  const odd = run(output({ claims: [claim("Something happened.", { type: "RHETORICAL" })] }));
+  assert.equal(odd.claims[0].type, "FACTUAL");
 });
 
 test("verification metadata never influences status, buckets, counters or banner", () => {
