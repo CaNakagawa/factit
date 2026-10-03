@@ -2,7 +2,7 @@
 
 Prompt versioning is mandatory.
 
-Current version: 2.2.0 (`PROMPT_VERSION` in extension/analysis/prompt.js).
+Current version: 2.3.0 (`PROMPT_VERSION` in extension/analysis/prompt.js).
 Bump it on any wording change; cached results are keyed on it.
 
 ## Input Separation
@@ -115,6 +115,11 @@ the output characters versus schema 1.2.
 
 ## Changelog
 
+- 2.3.0 - unsourced assertion is a concern (UNSUPPORTED_ASSERTION),
+  explicitly including opinion, commentary and almanac pieces: the
+  opinion is never a concern, a factual statement inside one still is.
+  The model is told to give the reader what they need to judge and stop
+  there, never to say who is right (ADR-013).
 - 2.2.0 - SPECIFIC/MATERIAL/EXPLAINABLE concern gate and the
   "never a concern by itself" list; statement kinds INTERPRETATION,
   RECOMMENDATION and PREDICTION classified before evaluation;

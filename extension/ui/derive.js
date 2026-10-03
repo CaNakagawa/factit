@@ -1,4 +1,4 @@
-// Fact It - view derivation (schema 2.2, concern detection).
+// Fact It - view derivation (schema 2.3, concern detection).
 //
 // Classic script; exposes FactIt.derive. Pure functions that turn one
 // validated AnalysisResult into everything the bar, the summary panel and
@@ -72,6 +72,7 @@
     CONCLUSION_CONFLICTS_WITH_EVIDENCE: "Conclusion conflicts with evidence",
     INVALID_CITATION: "Invalid citation",
     HEADLINE_OVERSTATEMENT: "Headline overstates the body",
+    UNSUPPORTED_ASSERTION: "Stated as fact, nothing shown",
     AMBIGUOUS_ATTRIBUTION: "Ambiguous attribution",
     MISLEADING_STATISTIC: "Questionable statistic",
     MATERIAL_MISSING_CONTEXT: "Material context missing",
@@ -203,14 +204,28 @@
    * about the text; neither is a claim about the author's intent.
    */
   function twoBoxes(claim, result) {
-    // `believe` is empty unless the model recorded an inference the wording
-    // invites. Without one there is no contrast to draw, and repeating the
-    // claim on both sides would say nothing (ADR-012).
-    const believe = claim.inference || "";
-    const says = [{ key: t("Stated"), text: claim.text }];
+    // Two modes (ADR-013). CONTRAST: the model recorded a reading the
+    // wording invites but the text does not establish, so the left box
+    // holds that reading and the literal statement moves right.
+    // COMPARISON: no such reading, so the left box holds what the article
+    // states and the right box what it actually shows for it. Every claim
+    // is comparable; only the question being asked changes.
+    const inference = claim.inference || "";
+    const contrast = Boolean(inference);
+    const says = [];
+    if (contrast) says.push({ key: t("Stated"), text: claim.text });
     says.push({ key: t("Shown"), text: claim.evidence || evidenceLabel(claim.evidence_type) });
     if (claim.gap) says.push({ key: t("Not shown"), text: claim.gap });
-    return { tag: tagOf(claim, result), believe, contrast: Boolean(believe), fromInference: Boolean(believe), says };
+    return {
+      tag: tagOf(claim, result),
+      mode: contrast ? "contrast" : "comparison",
+      contrast,
+      fromInference: contrast,
+      believe: inference || claim.text,
+      believeTitle: contrast ? "What it leads you to believe" : "What the article states",
+      saysTitle: contrast ? "What it actually says" : "What the article shows for it",
+      says,
+    };
   }
 
   /** Status and its presentation. */

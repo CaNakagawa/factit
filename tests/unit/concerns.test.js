@@ -226,6 +226,51 @@ test("CASE 9: advice, predictions and interpretations are not unproven factual c
   assert.equal(odd.claims[0].type, "FACTUAL");
 });
 
+test("CASE 10: the banner can never say 'no concerns' over claims the list already flags (ADR-013)", () => {
+  // An opinion piece built on factual assertions with no source and nothing
+  // shown. The claim list colored these; the banner used to stay green.
+  const v = run(output({
+    claims: [
+      claim("The conversion would be opportunistic, tied to the election.", { type: "OPINION", support: "UNSUPPORTED_WITHIN_ARTICLE", attribution: "NONE", evidence_type: "ARTICLE_ASSERTION", evidence: "" }),
+      claim("He publicly criticized priestly celibacy.", { support: "UNSUPPORTED_WITHIN_ARTICLE", attribution: "NONE", evidence_type: "ARTICLE_ASSERTION", evidence: "" }),
+      claim("The electronic ballot stops a voter choosing an animal.", { support: "UNSUPPORTED_WITHIN_ARTICLE", attribution: "NONE", evidence_type: "ARTICLE_ASSERTION", evidence: "" }),
+      claim("The party chairman would only accept payment in amendments.", { support: "UNSUPPORTED_WITHIN_ARTICLE", attribution: "NONE", evidence_type: "ARTICLE_ASSERTION", evidence: "" }),
+    ],
+  }));
+  assert.equal(v.assessment.status, "REVIEW_RECOMMENDED");
+  assert.deepEqual(D.bannerText(v), { label: "Review recommended", detail: "4 concerns" });
+  const n = D.counts(v);
+  assert.equal(n.flagged, 4);
+  assert.equal(n.concerns, n.flagged, "the banner counts what the claim list shows");
+  assert.deepEqual(v.claims.map((c) => c.concerns), [["UNSUPPORTED_ASSERTION"]].concat([["UNSUPPORTED_ASSERTION"], ["UNSUPPORTED_ASSERTION"], ["UNSUPPORTED_ASSERTION"]]));
+  assert.equal(D.keyFindings(v).length, 4, "and the reader is told which statements they are");
+
+  // A claim contradicted by the article itself is significant.
+  const contradicted = run(output({ claims: [claim("Attendance rose.", { support: "INTERNALLY_CONTRADICTED" })] }));
+  assert.equal(contradicted.assessment.status, "SIGNIFICANT_CONCERNS");
+  assert.deepEqual(contradicted.claims[0].concerns, ["INTERNAL_CONTRADICTION"]);
+
+  // What ADR-008 removed stays removed: attribution, reported allegations
+  // and plain uncertainty never move the status.
+  const ordinary = run(output({
+    claims: [
+      claim("The regulator said the filing is under review."),
+      claim("Investigators accuse the company of price fixing.", { type: "ALLEGATION", support: "ALLEGATION_REPORTED" }),
+      claim("Whether the deadline applies is not stated.", { support: "UNCLEAR", attribution: "NONE", evidence_type: "ARTICLE_ASSERTION", evidence: "" }),
+    ],
+  }));
+  assert.equal(ordinary.assessment.status, "NO_SIGNIFICANT_CONCERNS");
+  assert.deepEqual(ordinary.claims.map((c) => c.concerns), [[], [], []]);
+  assert.equal(D.counts(ordinary).flagged, 0);
+
+  // When the model named the problem itself, nothing is added on top.
+  const named = run(output({
+    claims: [claim("Sales doubled.", { support: "UNSUPPORTED_WITHIN_ARTICLE", attribution: "NONE", evidence_type: "NO_EVIDENCE_SHOWN", evidence: "", concerns: ["MISLEADING_STATISTIC"], gap: "No baseline is given." })],
+  }));
+  assert.deepEqual(named.claims[0].concerns, ["MISLEADING_STATISTIC"]);
+  assert.equal(D.counts(named).concerns, 1);
+});
+
 test("verification metadata never influences status, buckets, counters or banner", () => {
   const v = run(output({ claims: [claim("A"), claim("B"), claim("C")] }));
   const tampered = JSON.parse(JSON.stringify(v));

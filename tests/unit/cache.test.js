@@ -23,7 +23,7 @@ const hash = (n) => n.toString(16).padStart(64, "0");
 
 function result(overrides = {}) {
   return {
-    schema_version: "2.2",
+    schema_version: "2.3",
     assessment: { status: "NO_SIGNIFICANT_CONCERNS", confidence: 0.5, rationale: "", verification_level: "AI_PRELIMINARY", external_verification: "NOT_PERFORMED" },
     source_transparency: {},
     claims: [{ id: "c1", text: "c", type: "FACTUAL", support: "UNCLEAR", attribution: "UNCLEAR", evidence_type: "UNKNOWN", evidence: "", concerns: [], gap: "", inference: "" }],
@@ -78,7 +78,7 @@ test("schema 1.x entries are still served, migrated to 2.0 and marked", async ()
   area.data["analysis:" + hash(9)] = { result: legacy, cached_at: "2026-09-17T00:00:00.000Z" };
   const hit = await cache.get(hash(9));
   assert.ok(hit);
-  assert.equal(hit.result.schema_version, "2.2");
+  assert.equal(hit.result.schema_version, "2.3");
   assert.equal(hit.result.claims[0].support, "ARTICLE_SUPPORTED");
   assert.equal(hit.result.claims[0].evidence, "quoted");
   assert.deepEqual(hit.result.concerns, [{ type: "MATERIAL_MISSING_CONTEXT", severity: "MODERATE", note: "ctx", claim_ids: [] }]);

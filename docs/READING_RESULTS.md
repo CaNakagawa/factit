@@ -32,6 +32,11 @@ signals, **observations** are moderate ones. The bar's number is the
 total of both, so a bar reading *Review recommended · 3 concerns* can
 sit above *0 concerns · 3 observations* in the panel.
 
+A statement the article asserts as fact while naming no source and
+showing nothing counts as a signal on its own, so the status reflects
+it even when the model wrote no separate note. Attributed reporting,
+reported allegations and plain uncertainty never do.
+
 Interface text follows your **Interface language** setting; the
 analysis text itself is written in the language of the article and is
 never translated.
@@ -45,9 +50,10 @@ never translated.
 - **Claims** — each claim, expandable: its status within the article,
   attribution, the evidence the article gives, the evidence type,
   concerns, what is missing, and the inference a reader may draw.
-- **Evidence** — the evidence profile, and a side-by-side contrast
-  of *what the article leads you to believe* against *what it
-  actually says* for claims that carry concerns.
+- **Evidence** — the evidence profile, and the side-by-side view. Each
+  claim is shown with what the article states on the left and what it
+  shows for it on the right; where the wording invites a reading the
+  text does not establish, the left box holds that reading instead.
 - **Framing** — observable characteristics only.
 - **About** — provider, model, prompt and schema version, tokens and
   estimated cost.

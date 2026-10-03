@@ -64,6 +64,7 @@
     "Source does not support the claim": "A fonte não sustenta a afirmação",
     "Conclusion conflicts with evidence": "A conclusão conflita com as evidências",
     "Invalid citation": "Citação inválida",
+    "Stated as fact, nothing shown": "Afirmado como fato, nada apresentado",
     "Headline overstates the body": "Título exagera em relação ao texto",
     "Ambiguous attribution": "Atribuição ambígua",
     "Questionable statistic": "Estatística questionável",
@@ -111,6 +112,8 @@
     // ------------------------------------------------------- two boxes
     "What it leads you to believe": "O que leva você a acreditar",
     "What it actually says": "O que de fato diz",
+    "What the article states": "O que o artigo afirma",
+    "What the article shows for it": "O que o artigo mostra para isso",
     Stated: "Afirma",
     Shown: "Mostra",
     "Not shown": "Não mostra",
@@ -233,8 +236,8 @@
     "No claim carries a concern, so there is nothing to put side by side. Ordinary reporting is not listed here.":
       "Nenhuma afirmação carrega preocupação, então não há nada para comparar lado a lado. Relatos comuns não aparecem aqui.",
     "No claims to compare.": "Nenhuma afirmação para comparar.",
-    "Where a passage invites a reading its own text does not establish, that reading is shown on the left and what the text states and shows on the right. Both are observations about the text, not claims about the author's intent or about readers.":
-      "Quando um trecho convida a uma leitura que o próprio texto não estabelece, essa leitura aparece à esquerda e o que o texto afirma e mostra, à direita. Ambas são observações sobre o texto, não afirmações sobre a intenção do autor ou sobre os leitores.",
+    "Left: what the article states, or the reading its wording invites where the text does not establish it. Right: what the article actually shows for it, and what it does not. Both are observations about the text, not claims about the author's intent or about readers.":
+      "À esquerda: o que o artigo afirma, ou a leitura que a redação convida quando o texto não a estabelece. À direita: o que o artigo de fato mostra para isso, e o que não mostra. Ambas são observações sobre o texto, não afirmações sobre a intenção do autor ou sobre os leitores.",
 
     "Possible {type} framing": "Enquadramento {type} possível",
     "{strength} · Confidence: {pct}": "{strength} · Confiança: {pct}",

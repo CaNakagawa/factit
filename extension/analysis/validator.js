@@ -1,4 +1,4 @@
-// Fact It - AnalysisResult validation (schema 2.1).
+// Fact It - AnalysisResult validation (schema 2.3).
 //
 // LLM output is UNTRUSTED. This module turns whatever text the model
 // returned into either a schema-conformant AnalysisResult or a clear
@@ -7,7 +7,9 @@
 // string and drops items it cannot validate (recording why).
 //
 // It also migrates results written under schema 1.x and 2.0 (still in the
-// local cache) into the 2.1 shape, so one renderer serves everything.
+// local cache) into the current shape, so one renderer serves everything,
+// and derives the concern implied by a claim's own support level so the
+// status can never disagree with the claim list (ADR-013).
 
 import {
   ANALYSIS_SCHEMA_VERSION,
@@ -19,6 +21,7 @@ import {
   EVIDENCE_TYPES,
   CONCERN_TYPES,
   CONCERN_SEVERITY,
+  SUPPORT_CONCERN,
   FRAMING_TYPES,
   FRAMING_STRENGTHS,
   LIMITS,
@@ -227,8 +230,26 @@ export function migrate20(raw) {
 // ------------------------------------------------------------ validation
 
 /**
- * Overall status from concerns only. External verification status never
- * plays a part (ADR-008).
+ * The concern a claim's own support level already implies, when the model
+ * did not record one (ADR-013). A statement the article asserts as fact
+ * with no source and nothing shown is a signal about the article, so the
+ * banner must say so rather than reporting "no significant concerns" over
+ * a list of claims the UI has already colored.
+ *
+ * This is not verification absence: ATTRIBUTED, ALLEGATION_REPORTED and
+ * UNCLEAR imply nothing and never will (ADR-008).
+ */
+export function impliedConcern(claim) {
+  const code = SUPPORT_CONCERN[claim.support];
+  if (!code) return null;
+  const already = Array.isArray(claim.concerns) ? claim.concerns : [];
+  if (already.length) return null; // the model named the problem itself
+  return code;
+}
+
+/**
+ * Overall status from concerns, including the ones implied by a claim's
+ * support level. External verification status never plays a part (ADR-008).
  */
 export function deriveStatus(claims, concerns) {
   const codes = [...concerns.map((c) => c.type), ...claims.flatMap((c) => c.concerns || [])];
@@ -292,6 +313,12 @@ export function validateAnalysis(raw) {
       });
     });
     if (raw.claims.length > LIMITS.MAX_CLAIMS) notes.push(`claims truncated to ${LIMITS.MAX_CLAIMS}`);
+    // A claim whose support is itself a warning signal carries the matching
+    // concern, so every view agrees about it (ADR-013).
+    for (const c of claims) {
+      const implied = impliedConcern(c);
+      if (implied) c.concerns = [implied];
+    }
   }
 
   // article-level concerns

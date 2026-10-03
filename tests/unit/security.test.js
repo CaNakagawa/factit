@@ -251,7 +251,7 @@ test("oversized article: the background refuses over-cap content and the prompt 
 test("XSS: every model-derived string in bar and panel is inert text", () => {
   const payload = "<img src=x onerror=alert(1)><script>alert(2)</script><a href=javascript:alert(3)>x</a>";
   const r = {
-    schema_version: "2.2",
+    schema_version: "2.3",
     assessment: { status: "SIGNIFICANT_CONCERNS", confidence: 0.5, rationale: payload, verification_level: "AI_PRELIMINARY", external_verification: "NOT_PERFORMED" },
     source_transparency: {},
     claims: [{ id: "c1", text: payload, type: "ALLEGATION", support: "INTERNALLY_CONTRADICTED", attribution: "NONE", evidence_type: "UNKNOWN", evidence: payload, gap: payload, inference: payload, concerns: ["AMBIGUOUS_ATTRIBUTION"] }],

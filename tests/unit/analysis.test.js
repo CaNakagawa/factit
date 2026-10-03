@@ -63,7 +63,7 @@ function fakeProvider(text, { finish = "stop", model = "fake-model" } = {}) {
 // ---------------------------------------------------------------- prompt
 
 test("prompt is versioned and keeps instructions separate from the article", () => {
-  assert.equal(PROMPT_VERSION, "2.2.0");
+  assert.equal(PROMPT_VERSION, "2.3.0");
   const { system, input } = buildPrompt(articleDocument());
   assert.equal(system, SYSTEM_PROMPT);
   assert.doesNotMatch(system, /council voted/, "article text must not leak into system prompt");
@@ -155,7 +155,7 @@ test("valid output passes with forced schema, verification level, external verif
   assert.equal(r.ok, true);
   assert.deepEqual(r.issues, []);
   assert.equal(r.migrated_from, null);
-  assert.equal(r.value.schema_version, "2.2");
+  assert.equal(r.value.schema_version, "2.3");
   assert.equal(r.value.assessment.verification_level, VERIFICATION_LEVEL);
   assert.equal(r.value.assessment.external_verification, EXTERNAL_VERIFICATION);
   assert.equal(r.value.assessment.status, "SIGNIFICANT_CONCERNS", "an unsupported serious allegation is significant");
@@ -184,7 +184,7 @@ test("the model cannot escalate verification, external verification or schema ve
   }));
   assert.equal(r.value.assessment.verification_level, "AI_PRELIMINARY");
   assert.equal(r.value.assessment.external_verification, "NOT_PERFORMED");
-  assert.equal(r.value.schema_version, "2.2");
+  assert.equal(r.value.schema_version, "2.3");
 });
 
 test("numbers are clamped, strings capped, enums matched case-insensitively, ids reassigned", () => {
@@ -217,7 +217,18 @@ test("attribution and type default sensibly when absent", () => {
     { text: "c", support: "UNSUPPORTED_WITHIN_ARTICLE" },
   ], concerns: [] }));
   assert.deepEqual(r.value.claims.map((c) => [c.type, c.attribution]), [["FACTUAL", "CLEAR"], ["ALLEGATION", "CLEAR"], ["FACTUAL", "UNCLEAR"]]);
-  assert.equal(r.value.assessment.status, "NO_SIGNIFICANT_CONCERNS", "an unsupported claim without a concern code is not a concern by itself");
+  // ADR-013 reverses the earlier reading: a statement asserted as fact with
+  // no source and nothing shown is a signal about the article, so it gets
+  // the concern its support level already implies. Attributed reporting
+  // and reported allegations still imply nothing (ADR-008).
+  assert.deepEqual(r.value.claims.map((c) => c.concerns), [[], [], ["UNSUPPORTED_ASSERTION"]]);
+  assert.equal(r.value.assessment.status, "REVIEW_RECOMMENDED");
+  const attributedOnly = validateAnalysis(goodOutput({ claims: [
+    { text: "a", support: "ATTRIBUTED" },
+    { text: "b", support: "ALLEGATION_REPORTED" },
+    { text: "c", support: "UNCLEAR" },
+  ], concerns: [] }));
+  assert.equal(attributedOnly.value.assessment.status, "NO_SIGNIFICANT_CONCERNS", "attribution and uncertainty are not concerns");
 });
 
 test("invalid claims and concerns are dropped with a note, not fatal; unknown fields never carried", () => {
@@ -304,11 +315,11 @@ function legacy12() {
   };
 }
 
-test("schema 1.x results migrate to 2.1 without inventing anything", () => {
+test("schema 1.x results migrate to the current schema without inventing anything", () => {
   const r = validateAnalysis(legacy12());
   assert.equal(r.ok, true);
   assert.equal(r.migrated_from, "1.2");
-  assert.equal(r.value.schema_version, "2.2");
+  assert.equal(r.value.schema_version, "2.3");
   assert.equal(r.value.assessment.rationale, "because");
   const [a, b, c] = r.value.claims;
   assert.equal(a.support, "ARTICLE_SUPPORTED");
@@ -321,7 +332,11 @@ test("schema 1.x results migrate to 2.1 without inventing anything", () => {
   assert.deepEqual(r.value.concerns, [{ type: "MATERIAL_MISSING_CONTEXT", severity: "MODERATE", note: "ctx", claim_ids: [] }]);
   assert.deepEqual(r.value.framing.observations, ["urgent tone"]);
   assert.equal(r.value.assessment.external_verification, "NOT_PERFORMED");
-  assert.equal(r.value.assessment.status, "REVIEW_RECOMMENDED");
+  // The 1.x claim marked DISPUTED becomes INTERNALLY_CONTRADICTED, which
+  // carries its implied concern and so is significant (ADR-013).
+  assert.deepEqual(b.concerns, ["UNSUPPORTED_ASSERTION"]);
+  assert.deepEqual(c.concerns, ["INTERNAL_CONTRADICTION"]);
+  assert.equal(r.value.assessment.status, "SIGNIFICANT_CONCERNS");
 });
 
 test("schema 2.0 results migrate: verification flags dropped, issue codes become concerns", () => {
@@ -363,7 +378,7 @@ test("analyzeArticle: happy path attaches meta", async () => {
   assert.equal(result.assessment.verification_level, "AI_PRELIMINARY");
   assert.equal(result.assessment.status, "SIGNIFICANT_CONCERNS");
   assert.deepEqual(result.meta, {
-    provider: "fake", model: "fake-model", prompt_version: PROMPT_VERSION, schema_version: "2.2",
+    provider: "fake", model: "fake-model", prompt_version: PROMPT_VERSION, schema_version: "2.3",
     analyzed_at: "2026-09-18T12:00:00.000Z", content_hash: "a".repeat(64), truncated_input: false,
     finish: "stop", usage: { input_tokens: 10, output_tokens: 5 }, validation_issues: [], migrated_from: null,
   });

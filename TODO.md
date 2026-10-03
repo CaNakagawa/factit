@@ -38,6 +38,20 @@ real browser with a real key on the packaged zip, then tag v1.0.0.
 
 ## After V1.0
 
+### 1.6.0 (2026-10-03) - status agrees with the claim list (ADR-013)
+
+- Schema 2.3 / prompt 2.3.0. New concern `UNSUPPORTED_ASSERTION`
+  (MODERATE), derived by the validator from UNSUPPORTED_WITHIN_ARTICLE,
+  and `INTERNAL_CONTRADICTION` from INTERNALLY_CONTRADICTED, whenever
+  the model recorded no concern of its own.
+- The two boxes are back for every claim, in contrast or comparison
+  mode. ADR-012 had removed the comparison along with the noise.
+- 157 unit tests incl. CASE 10; 29 smoke checks.
+- Not covered: a derived concern carries the claim's `gap` as its note,
+  which is empty when the model wrote none - the entry then names the
+  statement without explaining it. Requiring `gap` whenever support is
+  UNSUPPORTED_WITHIN_ARTICLE is a prompt change, not done here.
+
 ### 1.5.0 (2026-10-03) - statement kinds and the characterization contrast (ADR-012)
 
 - Schema 2.2 / prompt 2.2.0. New claim types INTERPRETATION,

@@ -1,4 +1,4 @@
-// Fact It - AnalysisResult schema 2.2 (concern detection).
+// Fact It - AnalysisResult schema 2.3 (concern detection).
 //
 // Enumerations and limits from docs/ANALYSIS_SCHEMA.md. Used by the prompt
 // (to describe the expected output) and by the validator (to enforce it).
@@ -9,9 +9,9 @@
 // result. Every fact about a claim is generated once, on the claim
 // (ADR-007); the UI derives all views from those records.
 
-export const ANALYSIS_SCHEMA_VERSION = "2.2";
+export const ANALYSIS_SCHEMA_VERSION = "2.3";
 // Older results the cache may still hold; the validator migrates them.
-export const ACCEPTED_SCHEMA_VERSIONS = Object.freeze(["1.0", "1.1", "1.2", "2.0", "2.1", "2.2"]);
+export const ACCEPTED_SCHEMA_VERSIONS = Object.freeze(["1.0", "1.1", "1.2", "2.0", "2.1", "2.2", "2.3"]);
 
 // The only verification level the extension can produce. A future Evidence
 // Engine would introduce another value; the validator always forces this
@@ -83,6 +83,7 @@ export const CONCERN_SEVERITY = Object.freeze({
   INVALID_CITATION: "SIGNIFICANT", // citation detectably wrong from the available content
   // Moderate: concrete reasons for caution.
   HEADLINE_OVERSTATEMENT: "MODERATE",
+  UNSUPPORTED_ASSERTION: "MODERATE", // stated as fact with no source and nothing shown (ADR-013)
   AMBIGUOUS_ATTRIBUTION: "MODERATE", // attribution matters here and is unclear
   MISLEADING_STATISTIC: "MODERATE",
   MATERIAL_MISSING_CONTEXT: "MODERATE", // omission that changes the reading of the central claim
@@ -93,6 +94,14 @@ export const CONCERN_SEVERITY = Object.freeze({
   MISLEADING_FRAMING: "MODERATE",
 });
 export const CONCERN_TYPES = Object.freeze(Object.keys(CONCERN_SEVERITY));
+
+// A claim whose support is one of these is already a warning signal on its
+// own. The validator derives the matching concern so the overall status,
+// the counters and the claim colour can never disagree (ADR-013).
+export const SUPPORT_CONCERN = Object.freeze({
+  UNSUPPORTED_WITHIN_ARTICLE: "UNSUPPORTED_ASSERTION",
+  INTERNALLY_CONTRADICTED: "INTERNAL_CONTRADICTION",
+});
 
 // Concern codes whose presence counts as a contradiction in the counters.
 export const CONTRADICTION_CONCERNS = Object.freeze([

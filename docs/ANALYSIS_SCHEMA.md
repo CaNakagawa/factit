@@ -1,6 +1,6 @@
 # Fact It - AnalysisResult
 
-Schema Version: 2.2 (claim-centric, concern detection; see DECISIONS.md ADR-007, ADR-008 and ADR-012)
+Schema Version: 2.3 (claim-centric, concern detection; see DECISIONS.md ADR-007, ADR-008, ADR-012 and ADR-013)
 
 Produced by `analyzeArticle` (extension/analysis/engine.js) from the
 model's JSON after validation (extension/analysis/validator.js).
@@ -11,7 +11,7 @@ generated twice.
 
 ```
 {
-  "schema_version": "2.2",
+  "schema_version": "2.3",
   "assessment": {
     "status": "NO_SIGNIFICANT_CONCERNS",
     "confidence": 0.0,
@@ -40,7 +40,7 @@ generated twice.
   "framing": { "detected": false, "type": null, "strength": null, "confidence": 0.0, "observations": [] },
   "summary": "",
   "meta": {
-    "provider": "", "model": "", "prompt_version": "2.2.0", "schema_version": "2.2",
+    "provider": "", "model": "", "prompt_version": "2.3.0", "schema_version": "2.3",
     "analyzed_at": "<ISO 8601>", "content_hash": "<sha256>", "truncated_input": false,
     "finish": "stop", "usage": { "input_tokens": 0, "output_tokens": 0 } | null,
     "validation_issues": [], "migrated_from": null | "1.0" | "1.1" | "1.2" | "2.0"
@@ -122,13 +122,22 @@ ADVICE, PREDICTION and INTERPRETATION are neutral: a statement kind is
 never a warning. No tag asserts truth or verification; there is
 deliberately no FACT tag.
 
-Derived **two boxes** (ADR-010, ADR-012): the contrast is drawn only
-when `inference` is present. "What it leads you to believe" is that
-inference; "What it actually says" is the literal statement, then
-`evidence` (or the evidence type when nothing is shown), then `gap`.
-With no inference there is no contrast to draw and the boxes are not
-rendered at all: repeating the claim on both sides would say nothing.
-Both sides are observations about the text.
+Derived **two boxes** (ADR-010, ADR-012, ADR-013), in two modes. With
+an `inference` the mode is **contrast**: "What it leads you to believe"
+holds that inference, "What it actually says" holds the literal
+statement, then `evidence` (or the evidence type when nothing is
+shown), then `gap`. Without one the mode is **comparison**: "What the
+article states" holds the claim, "What the article shows for it" holds
+the evidence and gap. Every claim is comparable; only the question
+changes. Both sides are observations about the text.
+
+**Concerns implied by support** (ADR-013): the validator attaches
+`UNSUPPORTED_ASSERTION` to a claim whose support is
+UNSUPPORTED_WITHIN_ARTICLE, and `INTERNAL_CONTRADICTION` to one that is
+INTERNALLY_CONTRADICTED, when the model recorded no concern of its own.
+The status, counters, key findings and claim colour therefore come from
+the same record and cannot disagree. ATTRIBUTED, ALLEGATION_REPORTED and
+UNCLEAR imply nothing (ADR-008).
 
 ## Concerns
 

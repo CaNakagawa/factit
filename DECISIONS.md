@@ -500,3 +500,102 @@ contrast; Re-analyze remains explicit.
 Regression cases CASE 8 (characterization contrast without a concern)
 and CASE 9 (advice, predictions, interpretations) join the ADR-008
 suite in tests/unit/concerns.test.js.
+---
+
+## ADR-013 - The status must agree with the claim list; every claim stays comparable
+
+### Context
+
+Two problems reported from live use on real articles.
+
+**1. The banner said "no significant concerns" over claims the panel had
+already flagged.** `deriveStatus` looked only at concern codes, while
+`ui/derive.js` colored a claim from its support level. An opinion piece
+built on four statements asserted as fact with no source and nothing
+shown rendered four yellow UNSOURCED claims, `flagged: 4` - and a green
+banner reading "Nenhuma preocupação relevante". A reader who stops at
+the bar is told the opposite of what the claim list says.
+
+This also made the tool read as insufficiently critical, which was the
+reported complaint. The cause was not a judgement threshold: the model
+had already classified those statements correctly. The status simply
+ignored the classification.
+
+**2. ADR-012 removed the comparison, not just the noise.** It stopped
+rendering the two boxes when there was no `inference`, on the grounds
+that repeating the claim on both sides said nothing. But the boxes were
+also the only place the article's statement sat next to what the article
+shows for it, and that comparison was the part users valued. Removing it
+left a metadata table where there had been something to read.
+
+### Decision
+
+**Derive the concern a support level already implies.** `SUPPORT_CONCERN`
+maps UNSUPPORTED_WITHIN_ARTICLE -> UNSUPPORTED_ASSERTION (new, MODERATE)
+and INTERNALLY_CONTRADICTED -> INTERNAL_CONTRADICTION. The validator
+attaches it when the model recorded no concern of its own, so the status,
+the counters, the key findings and the claim colour all come from the
+same record and cannot disagree. When the model did name the problem,
+its code is kept and nothing is added.
+
+The boundary ADR-008 drew is unchanged. UNSUPPORTED_WITHIN_ARTICLE means
+*the article asserts this as fact, names no source and shows nothing* -
+an observable property of the article. ATTRIBUTED, ALLEGATION_REPORTED
+and UNCLEAR imply nothing and never will. Fact It not having verified
+something is still not a concern.
+
+**Two box modes instead of one.** CONTRAST when the model recorded a
+reading the wording invites but the text does not establish: that reading
+on the left, the literal statement and the evidence on the right.
+COMPARISON otherwise: what the article states on the left, what it shows
+for it on the right. Every claim is comparable again; only the question
+changes. The misleading "What it leads you to believe" over a claim that
+leads nowhere is gone, which was the real defect ADR-012 was aiming at.
+
+**The prompt is more demanding about unsourced assertion**, explicitly
+including opinion, commentary and almanac pieces: the opinion itself is
+never a concern, but a factual statement inside one is still a factual
+statement. It is also told to give the reader what they need to judge
+and stop there - never to say who is right or what to conclude.
+
+Schema 2.3, prompt 2.3.0.
+
+### Alternatives
+
+**Leave the status alone and fix only the wording.** Rejected: the
+numbers disagreed, not the labels. Relabelling would have hidden the
+inconsistency rather than removing it.
+
+**Count support-level signals in the banner only.** Rejected: it would
+reproduce the bar-vs-panel count mismatch already documented in
+docs/READING_RESULTS.md, in a second place.
+
+**Add the concern in the prompt only.** Kept as well, but not alone: the
+model forgetting a code must not silently turn an article green again.
+Deriving it in the validator makes the guarantee structural.
+
+**Lower the bar generally to be "more critical".** Rejected. It would
+re-create the over-warning ADR-008 removed. The change here adds exactly
+one signal, and it is one the model had already identified.
+
+### Tradeoffs
+
+Articles that were green may now read REVIEW_RECOMMENDED, including
+cached ones: results are re-validated on read, so the correction applies
+without re-analysis and without spending tokens. That is the intended
+effect, but it is a visible change to results the user has already seen.
+
+A derived concern carries the claim's `gap` as its note, which is empty
+when the model did not write one. The entry then names the statement
+without explaining it further. Requiring `gap` whenever support is
+UNSUPPORTED_WITHIN_ARTICLE is the obvious follow-up and is a prompt
+change, not a schema one.
+
+Prompt 2.3.0 is ~10,858 chars (~2,715 tokens), about +160 over 2.2.0.
+
+### Consequences
+
+CASE 10 joins the regression suite: the banner can never say "no
+concerns" over claims the list flags; contradiction is significant;
+attribution, reported allegations and plain uncertainty still move
+nothing; a model-named concern is not doubled.

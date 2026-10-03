@@ -15,7 +15,7 @@ const claim = (over = {}) => ({
   evidence_type: "NAMED_SOURCE", evidence: "e", concerns: [], gap: "", inference: "", ...over,
 });
 const result = (claims, concerns = [], status = null, framing = { detected: false }) => ({
-  schema_version: "2.2",
+  schema_version: "2.3",
   assessment: {
     status: status || (concerns.some((c) => c.severity === "SIGNIFICANT") || claims.some((c) => (c.concerns || []).some((x) => D.severityOf(x) === "SIGNIFICANT")) ? "SIGNIFICANT_CONCERNS"
       : (concerns.length || claims.some((c) => (c.concerns || []).length)) ? "REVIEW_RECOMMENDED" : "NO_SIGNIFICANT_CONCERNS"),
@@ -164,20 +164,22 @@ test("twoBoxes: inference on the left moves the statement to the right", () => {
   ]);
   assert.equal(tb.tag.code, "NEEDS_REVIEW");
 
+  assert.equal(tb.mode, "contrast");
+  assert.equal(tb.believeTitle, "What it leads you to believe");
+
+  // With no invited reading the boxes still compare: what the article
+  // states against what it shows for it (ADR-013).
   const plain = claim({ text: "The council voted 7-2.", evidence: "session record" });
   const tb2 = D.twoBoxes(plain, result([plain]));
-  assert.equal(tb2.believe, "", "with no invited reading there is no contrast to draw");
+  assert.equal(tb2.mode, "comparison");
   assert.equal(tb2.contrast, false);
-  assert.deepEqual(tb2.says, [
-    { key: "Stated", text: "The council voted 7-2." },
-    { key: "Shown", text: "session record" },
-  ]);
+  assert.equal(tb2.believe, "The council voted 7-2.");
+  assert.equal(tb2.believeTitle, "What the article states");
+  assert.equal(tb2.saysTitle, "What the article shows for it");
+  assert.deepEqual(tb2.says, [{ key: "Shown", text: "session record" }]);
 
   const nothing = claim({ text: "X happened.", evidence: "", evidence_type: "NO_EVIDENCE_SHOWN", support: "UNSUPPORTED_WITHIN_ARTICLE" });
-  assert.deepEqual(D.twoBoxes(nothing, result([nothing])).says, [
-    { key: "Stated", text: "X happened." },
-    { key: "Shown", text: "No evidence shown" },
-  ]);
+  assert.deepEqual(D.twoBoxes(nothing, result([nothing])).says, [{ key: "Shown", text: "No evidence shown" }]);
 });
 
 test("statement kind is classified before it is judged: advice and predictions are not unsupported claims", () => {

@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.6.0 - 2026-10-03
+
+- Fixed: the bar could read **No significant concerns** over a claim
+  list the panel had already flagged. A statement the article asserts
+  as fact while naming no source and showing nothing now carries
+  `UNSUPPORTED_ASSERTION`, and a claim the article contradicts carries
+  `INTERNAL_CONTRADICTION`, so the status, counters, key findings and
+  claim colour can no longer disagree (ADR-013)
+- Analysis is more demanding about unsourced assertion, explicitly in
+  opinion, commentary and almanac pieces: the opinion itself is never a
+  concern, a factual statement inside one still is
+- Restored the side-by-side comparison for every claim. It now has two
+  modes: **contrast** where the wording invites a reading the text does
+  not establish, **comparison** otherwise - what the article states
+  next to what it shows for it
+- Unchanged: attributed reporting, reported allegations and plain
+  uncertainty still move nothing, and Fact It not having verified
+  something is still never a concern (ADR-008)
+- Schema 2.3, prompt 2.3.0. Cached results are re-validated on read, so
+  the status correction applies without spending tokens
+
 ## 1.5.0 - 2026-10-03
 
 - Analysis classifies the kind of statement before judging it: new

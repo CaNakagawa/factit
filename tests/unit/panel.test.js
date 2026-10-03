@@ -19,7 +19,7 @@ const claim = (over = {}) => ({
 
 function result(overrides = {}) {
   return {
-    schema_version: "2.2",
+    schema_version: "2.3",
     assessment: { status: "NO_SIGNIFICANT_CONCERNS", confidence: 0.8, rationale: "Every claim is attributed to Microsoft or the CVE record and the statements agree with each other.", verification_level: "AI_PRELIMINARY", external_verification: "NOT_PERFORMED" },
     source_transparency: { named_sources: true, primary_references: true, direct_quotes: true },
     claims: [
@@ -30,7 +30,7 @@ function result(overrides = {}) {
     concerns: [],
     framing: { detected: false, type: null, strength: null, confidence: 0.2, observations: [] },
     summary: "An ordinary vulnerability report; statements are attributed and consistent.",
-    meta: { provider: "openai-compatible", model: "deepseek-chat", prompt_version: "2.2.0", schema_version: "2.2", analyzed_at: "2026-09-18T00:00:00.000Z", usage: { input_tokens: 5650, output_tokens: 900 }, validation_issues: [], migrated_from: null },
+    meta: { provider: "openai-compatible", model: "deepseek-chat", prompt_version: "2.3.0", schema_version: "2.3", analyzed_at: "2026-09-18T00:00:00.000Z", usage: { input_tokens: 5650, output_tokens: 900 }, validation_issues: [], migrated_from: null },
     ...overrides,
   };
 }
@@ -116,7 +116,9 @@ test("Inspect claims opens the Claims tab; ordinary claims are green and expand 
   items[0].querySelector("button").click();
   const dl = items[0].querySelector("dl");
   assert.equal(dl.hidden, false);
-  assert.equal(items[0].querySelector(".boxes"), null, "an ordinary claim invites no reading its text does not establish, so there is no contrast to draw");
+  const okBoxes = items[0].querySelector(".boxes");
+  assert.equal(okBoxes.hidden, false, "the comparison opens with the claim");
+  assert.deepEqual([...okBoxes.querySelectorAll(".box h5")].map((h) => h.textContent), ["What the article states", "What the article shows for it"]);
   const fields = [...dl.querySelectorAll("dt")].map((d) => d.textContent);
   assert.deepEqual(fields, ["Within the article", "Type", "Attribution", "Article evidence", "Evidence type", "Concerns", "External verification"]);
   const values = [...dl.querySelectorAll("dd")].map((d) => d.textContent);
@@ -160,11 +162,12 @@ test("Evidence tab: side by side lists only claims with concerns, with possible 
   const t = text(p);
   assert.match(t, /Side by side: claims with concerns \(3\)/);
   const rows = [...p.querySelectorAll(".sbs .row")];
-  // c1 carries a concern but no invited reading, so only the right box is drawn.
-  assert.deepEqual([...rows[0].querySelectorAll(".box h5")].map((h) => h.textContent), ["What it actually says"]);
+  // c1 carries a concern but no invited reading: the boxes compare what the
+  // article states against what it shows for it.
+  assert.deepEqual([...rows[0].querySelectorAll(".box h5")].map((h) => h.textContent), ["What the article states", "What the article shows for it"]);
   assert.equal(rows[0].querySelector(".tag").textContent, "CONTRADICTION");
   // c2 states an inference, so the contrast appears.
-  const contrast = rows.find((r) => r.querySelector(".box.believe"));
+  const contrast = rows.find((r) => r.querySelector(".boxes:not(.compare)"));
   assert.deepEqual([...contrast.querySelectorAll(".box h5")].map((h) => h.textContent), ["What it leads you to believe", "What it actually says"]);
   assert.equal(contrast.querySelector(".box.believe p").textContent, "That the minister acted in bad faith.");
   assert.match(t, /That the minister acted in bad faith/);
@@ -194,8 +197,8 @@ test("About tab: status, verification metadata, provider, model, prompt, tokens,
   assert.equal(kv["Verification level"], "AI preliminary");
   assert.match(kv["External verification"], /Not performed \(metadata; never counted as a concern\)/);
   assert.equal(kv.Model, "deepseek-chat");
-  assert.equal(kv["Prompt version"], "2.2.0");
-  assert.equal(kv["Schema version"], "2.2");
+  assert.equal(kv["Prompt version"], "2.3.0");
+  assert.equal(kv["Schema version"], "2.3");
   assert.equal(kv.Tokens, "5,650 input · 900 output");
   assert.equal(kv["Estimated cost"], "$0.020 ($0.011 in + $0.0090 out)");
   assert.equal(kv.Source, "local cache");
@@ -269,15 +272,17 @@ test("two boxes: the invited takeaway on the left, what the text states and show
   ]);
   assert.doesNotMatch(boxes.textContent, /intent|motive/i, "no claim about intent");
 
-  // An ordinary claim invites no reading beyond what it states, so no
-  // contrast is drawn at all: repeating the claim on both sides says
-  // nothing (ADR-012). Its evidence is already in the detail list.
+  // An ordinary claim invites no reading beyond what it states, so the
+  // boxes compare rather than contrast: no "leads you to believe" over a
+  // claim that leads nowhere (ADR-013).
   const ok = mount(result());
   ok.panel.showDetail("claims");
   const first = ok.root.querySelector(".claim");
   first.querySelector("button").click();
-  assert.equal(first.querySelector(".boxes"), null);
-  assert.equal(first.querySelector("dl").hidden, false);
+  const okBoxes = first.querySelector(".boxes");
+  assert.deepEqual([...okBoxes.querySelectorAll(".box h5")].map((h) => h.textContent), ["What the article states", "What the article shows for it"]);
+  assert.equal(okBoxes.querySelector(".box.believe p").textContent, "Microsoft released fixes for CVE-2026-85889.");
+  assert.deepEqual([...okBoxes.querySelectorAll(".box.says p")].map((x) => x.textContent), ["ShownMicrosoft advisory, linked"]);
   assert.doesNotMatch(text(first), /What it leads you to believe/);
 });
 
