@@ -1,0 +1,7 @@
+# Reports are written every day. Only Public reports are meant to be versioned.
+# Sensitive and Private reports stay on the machine unless the owner decides otherwise
+# (delete the matching lines to version them).
+Sensitive/*
+!Sensitive/INSTRUCTIONS.md
+Private/*
+!Private/INSTRUCTIONS.md
