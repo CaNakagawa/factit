@@ -4,6 +4,10 @@
 
 **File:** `Report/Sensitive/<YYYY-MM-DD>-daily-report.json`, UTC date, one per day. **Language:** English.
 
+## What to write about
+
+Same content focus as `../Public/INSTRUCTIONS.md`: the **subject of the project**, never the machinery (files, checksums, tests, reviews, repositories, tooling, agents, governance). 
+
 ## How it differs from Public
 
 Same shape and the same validator as `../Public/INSTRUCTIONS.md` (answer, metrics, findings, next checks, owner actions, limits). On top of that, generalize anything that identifies or exposes:
