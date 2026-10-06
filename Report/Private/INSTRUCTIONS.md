@@ -6,6 +6,8 @@
 
 ## What to include
 
+This is where the machinery goes: the files, checks, tests, reviews and tooling the Public and Sensitive reports leave out. Keep the **subject** first, as in `../Public/INSTRUCTIONS.md`, then the internal detail.
+
 Use the same blocks as `../Public/INSTRUCTIONS.md` (answer with limits, metrics, findings with Observed / Concrete example / Why it matters / Does not establish, next checks, owner actions, limits) and add the internal detail the other folders may not carry:
 
 - `evidence[]` items may add a `path` (repository-relative or absolute), plus commands, hashes, line references and task ids so each claim can be reproduced.

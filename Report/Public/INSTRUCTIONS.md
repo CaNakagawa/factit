@@ -4,6 +4,20 @@
 
 **File:** `Report/Public/<YYYY-MM-DD>-daily-report.json`, UTC date, one per day (update it if it exists). **Language:** English.
 
+## What to write about
+
+Write about the **subject of the project**, for a reader who cares about the subject and has never seen the repository. 
+
+| Write about | Not about (this belongs in the `Private` report) |
+|---|---|
+| what the project is trying to find out or build, and why it matters | files, file counts, checksums, hashes, sizes, byte or line counts |
+| what was learned today: results, hypotheses and how each one fared | tests, test suites, builds, code reviews, linters, CI, deployments |
+| the calculations and arithmetic behind a result, and what they show | repositories, branches, mirrors, tooling, scripts, folders, data formats |
+| external sources with relevant information: who said what, and how far it can be trusted | agents, roles, delegation, models, queues, task or board bookkeeping |
+| what the result means, what it does not show, and what to try next | governance and housekeeping (who decides, permissions, policies) |
+
+Test every sentence: *would a curious stranger care about this without knowing how the work is organised?* If not, cut it or move it to `Private`. `metrics` count things of the subject (hypotheses tested, results reproduced, sources checked), never things of the process. `evidence` names the analyses and sources behind a claim in plain language, not the tools that ran them.
+
 ## What a good report looks like
 
 A document that answers first and shows how far the claim goes, not a wall of text. Fill these blocks (all are optional, but a report needs at least `answer` or `findings`):
