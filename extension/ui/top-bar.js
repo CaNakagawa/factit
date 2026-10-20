@@ -154,6 +154,16 @@
         render("no-article", el("span", "text muted", t("No article detected on this page")));
       },
 
+      // The page was read but there is not enough article text to analyze
+      // (still loading, or behind a gate). No status, no tokens.
+      setTooShort() {
+        render(
+          "too-short",
+          el("span", "text muted", t("Not enough of the article was read to analyze it. Wait for the page to finish loading.")),
+          actionButton(t("Try again"), handlers.onAnalyze),
+        );
+      },
+
       /**
        * @param {object} result validated AnalysisResult
        * @param {{ cached?: boolean }} [options]

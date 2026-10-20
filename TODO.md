@@ -38,6 +38,14 @@ real browser with a real key on the packaged zip, then tag v1.0.0.
 
 ## After V1.0
 
+### 1.6.1 (2026-10-20) - do not analyze an unread page (ADR-014)
+
+- Content under 600 characters or 3 paragraphs is refused with a
+  too-short bar state; no provider call. Background also rejects < 600.
+- 158 unit tests, 30 smoke checks.
+- Not covered: thresholds are from one failing page; tune on real
+  articles. Layouts with nested blocks count paragraphs conservatively.
+
 ### 1.6.0 (2026-10-03) - status agrees with the claim list (ADR-013)
 
 - Schema 2.3 / prompt 2.3.0. New concern `UNSUPPORTED_ASSERTION`

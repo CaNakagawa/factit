@@ -15,6 +15,14 @@
   // Cloning and parsing a huge DOM is the one thing a hostile page can make
   // expensive. Real articles are a few thousand nodes.
   const MAX_DOM_NODES = 60000;
+  // Below this the extraction is menus, headlines and teasers rather than an
+  // article: pages that render their body late, or hide it behind a gate.
+  // Analyzing it would answer a question nobody asked and could report
+  // "no significant concerns" about a page that was never read (ADR-014).
+  const MIN_CONTENT_CHARS = 600;
+  const MIN_PARAGRAPHS = 3;
+  const PARAGRAPH_MIN_CHARS = 80;
+  const BLOCK_SELECTOR = "p,li,blockquote,div,section,article,h1,h2,h3,h4,h5,h6,ul,ol,table";
   // Widgets Readability tends to keep although they are not article prose:
   // sidebars, media players, embedded frames, forms, teasers. Removed from
   // the CLONE only; the page itself is never touched.
@@ -47,6 +55,20 @@
   function nullable(value) {
     const t = text(value);
     return t === "" ? null : t;
+  }
+
+  // Blocks of running text: a block with no block child of its own and at
+  // least PARAGRAPH_MIN_CHARS characters. Counted on the extracted content
+  // (never the whole page), so menus of short links do not add up to prose.
+  function countParagraphs(articleElement) {
+    if (!articleElement || typeof articleElement.querySelectorAll !== "function") return 0;
+    let count = 0;
+    for (const node of articleElement.querySelectorAll(BLOCK_SELECTOR)) {
+      if (node.querySelector(BLOCK_SELECTOR)) continue; // a container, not text
+      const len = (node.textContent || "").replace(/\s+/g, " ").trim().length;
+      if (len >= PARAGRAPH_MIN_CHARS) count++;
+    }
+    return count;
   }
 
   // Hyperlinks inside the extracted article only, deduplicated by URL.
@@ -121,11 +143,24 @@
       published_at: nullable(article.publishedTime),
       language: nullable(article.lang) || nullable(documentLang),
       content: typeof article.textContent === "string" ? article.textContent : "",
+      paragraphs: countParagraphs(article.content),
       excerpt: nullable(article.excerpt),
       links: collectLinks(article.content, base),
       images: collectImages(article.content, base),
     };
   }
 
-  root.FactIt = Object.assign(root.FactIt || {}, { extractArticle, MAX_DOM_NODES });
+  /**
+   * Whether an extraction is too thin to analyze (ADR-014).
+   * @returns {{ thin: boolean, chars: number, paragraphs: number }}
+   */
+  function readQuality(extraction) {
+    const chars = extraction && typeof extraction.content === "string" ? extraction.content.trim().length : 0;
+    const paragraphs = extraction && Number.isInteger(extraction.paragraphs) ? extraction.paragraphs : 0;
+    return { thin: chars < MIN_CONTENT_CHARS || paragraphs < MIN_PARAGRAPHS, chars, paragraphs };
+  }
+
+  root.FactIt = Object.assign(root.FactIt || {}, {
+    extractArticle, readQuality, MAX_DOM_NODES, MIN_CONTENT_CHARS, MIN_PARAGRAPHS,
+  });
 })(globalThis);

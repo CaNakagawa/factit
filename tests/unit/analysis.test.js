@@ -392,8 +392,11 @@ test("analyzeArticle: malformed, truncated and refused outputs become AnalysisEr
   await assert.rejects(analyzeArticle(articleDocument(), fakeProvider(JSON.stringify({ assessment: {}, claims: "x" }))), (e) => e.kind === "invalid_output" && e.details.length > 0);
 });
 
+const LONG = "The council voted on Tuesday to approve the plan after a long debate. ".repeat(12);
+
 test("articleDocumentProblem accepts a real document and rejects bad ones", () => {
-  assert.equal(articleDocumentProblem(articleDocument()), null);
+  assert.equal(articleDocumentProblem(articleDocument({ content: LONG })), null);
+  assert.match(articleDocumentProblem(articleDocument({ content: "Menu Home News" })), /too short/, "a document of menus and headlines is never sent to a provider (ADR-014)");
   assert.match(articleDocumentProblem(null), /not an object/);
   assert.match(articleDocumentProblem({ ...articleDocument(), schema_version: "2.0" }), /schema_version/);
   assert.match(articleDocumentProblem(articleDocument({ url: "javascript:alert(1)" })), /url/);

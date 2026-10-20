@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.1 - 2026-10-20
+
+- Fixed: a page whose body had not rendered yet (or sits behind a gate)
+  was analyzed from its menu and headline, and could report **No
+  significant concerns** about text that was never read. A read under
+  600 characters or 3 paragraphs is now refused: the bar says not enough
+  of the article was read, offers **Try again**, and sends nothing to the
+  provider (ADR-014)
+
 ## 1.6.0 - 2026-10-03
 
 - Fixed: the bar could read **No significant concerns** over a claim
