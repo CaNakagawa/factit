@@ -123,6 +123,9 @@
     Analyze: "Analisar",
     "Analyzing…": "Analisando…",
     "No article detected on this page": "Nenhum artigo detectado nesta página",
+    "Not enough of the article was read to analyze it. Wait for the page to finish loading.":
+      "Não foi lido texto suficiente da matéria para analisar. Espere a página terminar de carregar.",
+    "Try again": "Tentar de novo",
     "AI preliminary · not externally verified": "IA preliminar · sem verificação externa",
     "AI preliminary": "IA preliminar",
     Details: "Detalhes",

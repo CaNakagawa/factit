@@ -599,3 +599,69 @@ CASE 10 joins the regression suite: the banner can never say "no
 concerns" over claims the list flags; contradiction is significant;
 attribution, reported allegations and plain uncertainty still move
 nothing; a model-named concern is not doubled.
+---
+
+## ADR-014 - Do not analyze a page that was not read
+
+### Context
+
+On a fact-check page that renders its body late, the extension analyzed
+what existed at that moment: a menu of short links, a headline and a
+standfirst, about 900 characters. The model faithfully reported the two
+claims it was given, found nothing wrong in them, and the bar read
+"No significant concerns". That is a verdict about a page that was never
+read, and ADR-008's "no significant concerns is a valid result" does not
+cover it: the result was valid only for the text received.
+
+Reproduced in a real Chromium: extraction at +3 s and +8 s returned 915
+characters of menu and headline; later the page re-rendered and the
+extractor returned nothing.
+
+The extractor was already re-run when the user clicks Analyze, so
+"reading too early at load" was not the cause. Clicking while the page
+was still loading was.
+
+### Decision
+
+A read is "thin" - and is not analyzed - when the extracted text is under
+600 characters **or** has fewer than 3 blocks of running text (a block
+with no block child and at least 80 characters). The paragraph count is
+what catches menus: 900 characters of short links pass a length check
+and fail this one.
+
+On a thin read the bar shows "Not enough of the article was read to
+analyze it. Wait for the page to finish loading." with Try again. No
+provider call is made, so no tokens are spent, and no status is shown.
+
+The background also rejects a document under 600 characters
+(`articleDocumentProblem`), so the provider is never called for one even
+if a content script misbehaves. The paragraph count lives only in the
+content script: it needs the DOM.
+
+The idle bar still appears on load for any page the extractor accepts,
+because a page whose body arrives late must still offer Analyze later.
+
+### Alternatives
+
+**Length only (600 characters).** Rejected: the failing page had 915.
+**Wait for `readyState === "complete"` before extracting.** Does not help
+single-page apps that render after load; the gate covers both.
+**Observe the DOM and re-extract on change.** More machinery and a
+permanent cost on every page, for a problem a retry button solves.
+**Warn but still analyze.** Rejected: a green status on unread text is the
+defect.
+
+### Tradeoffs
+
+Short real articles (a brief, a one-paragraph bulletin) are now refused.
+600 characters and 3 paragraphs are starting values taken from one
+failing page; they should be tuned against real articles. Pages whose
+text sits in blocks that contain other blocks are counted conservatively,
+so an unusual layout can be refused wrongly. Try again is always
+available.
+
+### Consequences
+
+Smoke test: a readerable one-paragraph page produces the too-short state
+and zero provider calls. Unit tests cover the menu-and-headline shape and
+the document-size defence.

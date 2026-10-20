@@ -1,4 +1,4 @@
-// Fact It - content script (V0.8).
+// Fact It - content script (V0.8, read-quality gate ADR-014).
 //
 // Runs in an isolated world on http/https pages. It must never receive
 // API keys. Loaded after vendor/Readability*.js, utils/hash.js,
@@ -16,15 +16,21 @@
 (() => {
   const deps = { Readability, isProbablyReaderable };
 
-  // Extraction + normalization. Returns an ArticleDocument or null.
-  async function buildArticleDocument() {
+  // Extraction + normalization. Returns the ArticleDocument (or null) and
+  // how substantial the read was: a page whose body renders late, or sits
+  // behind a gate, extracts as menus and headlines (ADR-014).
+  async function readArticle() {
     try {
       const extraction = FactIt.extractArticle(document, location, deps);
-      return await FactIt.normalizeArticle(extraction);
+      return { article: await FactIt.normalizeArticle(extraction), quality: FactIt.readQuality(extraction) };
     } catch (error) {
       console.warn("[Fact It] extraction failed:", error);
-      return null;
+      return { article: null, quality: { thin: true, chars: 0, paragraphs: 0 } };
     }
+  }
+
+  async function buildArticleDocument() {
+    return (await readArticle()).article;
   }
 
   // Summary only - article text is never logged.
@@ -120,11 +126,19 @@
     const ui = ensureBar();
     try {
       ui.setLoading();
-      const article = await buildArticleDocument();
+      // Read the page now, not at load: the body may not have existed yet.
+      const { article, quality } = await readArticle();
       if (!article) {
         console.log("[Fact It] analysis skipped: no article detected");
         ui.setNoArticle();
         return { ok: false, error: { kind: "no_article", message: "No article detected on this page." } };
+      }
+      if (quality.thin) {
+        // Nothing is sent to the provider: no tokens, and no verdict about
+        // text that was never read.
+        console.log(`[Fact It] analysis skipped: article too short (${quality.chars} chars, ${quality.paragraphs} paragraphs)`);
+        ui.setTooShort();
+        return { ok: false, error: { kind: "article_too_short", message: "Not enough article text was read.", chars: quality.chars, paragraphs: quality.paragraphs } };
       }
       console.log(`[Fact It] analysis requested${force ? " (re-analyze)" : ""}:`, summarize(article));
       let reply;

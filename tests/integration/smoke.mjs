@@ -38,6 +38,9 @@ const BROWSER = process.env.FACTIT_BROWSER || "chromium";
 const CDP_PORT = 9333;
 const WEB_PORT = 8765;
 
+// A page whose body has not rendered yet: one paragraph, enough to look
+// readerable and so get a bar, but far too little to analyze.
+const THIN_HTML = `<!DOCTYPE html><html lang="en"><head><title>Thin page</title></head><body><article><h1>Council votes on plan</h1><p>${"The council voted on Tuesday to approve the plan after a long debate, officials said at a briefing. ".repeat(5)}</p></article></body></html>`;
 const PAGE_HTML = readFileSync(new URL("../fixtures/article.html", import.meta.url), "utf8");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -157,7 +160,9 @@ const web = createServer((req, res) => {
     return;
   }
   res.setHeader("content-type", "text/html");
-  res.end(req.url === "/plain" ? "<!DOCTYPE html><html><head><title>Plain</title></head><body><a href='/'>home</a></body></html>" : PAGE_HTML);
+  res.end(req.url === "/plain" ? "<!DOCTYPE html><html><head><title>Plain</title></head><body><a href='/'>home</a></body></html>"
+    : req.url === "/thin" ? THIN_HTML
+    : PAGE_HTML);
 }).listen(WEB_PORT);
 
 const browser = spawn(BROWSER, [
@@ -472,6 +477,20 @@ try {
     expression: `(async () => { const s = document.getElementById("uiLanguage"); s.value = "en"; s.dispatchEvent(new Event("change")); await new Promise((r) => setTimeout(r, 300)); })()`,
     awaitPromise: true,
   });
+
+  // 8b'. A page that is read but too thin: Analyze sends nothing.
+  await page.send("Page.navigate", { url: `http://127.0.0.1:${WEB_PORT}/thin` });
+  await sleep(1200);
+  const thinBefore = providerCalls.length;
+  const thinClicked = await clickShadowButton(page, "Analyze");
+  await sleep(800);
+  const thinState = await page.send("Runtime.evaluate", { expression: "document.getElementById('factit-bar-host')?.dataset.factitState", returnByValue: true });
+  const thinBar = await shadowText(page, "bar");
+  check(
+    thinClicked && providerCalls.length === thinBefore && thinState.result?.result?.value === "too-short" && /Not enough of the article was read/.test(thinBar),
+    "a too-short read makes no provider call and says so",
+    `clicked=${thinClicked} calls=${providerCalls.length - thinBefore} state=${thinState.result?.result?.value}`,
+  );
 
   // 8c. No bar on a page without an article.
   await page.send("Page.navigate", { url: `http://127.0.0.1:${WEB_PORT}/plain` });

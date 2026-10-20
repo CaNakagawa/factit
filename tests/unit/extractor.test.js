@@ -10,7 +10,7 @@ import { Readability, isProbablyReaderable } from "@mozilla/readability";
 import { loadClassicScript } from "../helpers/load-script.js";
 
 loadClassicScript(new URL("../../extension/content/extractor.js", import.meta.url));
-const { extractArticle } = globalThis.FactIt;
+const { extractArticle, readQuality } = globalThis.FactIt;
 
 const deps = { Readability, isProbablyReaderable };
 
@@ -100,4 +100,27 @@ test("falls back to the document language when the article has none", () => {
   const result = extractArticle(dom.window.document, dom.window.location, deps);
   assert.ok(result);
   assert.equal(result.language, "pt-BR");
+});
+
+test("a full article is a substantial read; menus and a headline are not (ADR-014)", () => {
+  const full = load("article.html", "https://news.example.com/story");
+  const q = readQuality(extractArticle(full.doc, full.location, deps));
+  assert.equal(q.thin, false);
+  assert.ok(q.chars >= 600 && q.paragraphs >= 3, JSON.stringify(q));
+
+  // The shape seen on a real fact-check page read before its body rendered:
+  // a menu of short links, a headline and a standfirst.
+  const menu = ["Eleições", "Jornal do Carro", "TecMundo", "E-Investidor", "Pulsa", "Paladar", "Descubra", "Assine"]
+    .map((t) => `<li><a href="/${t}">${t}</a></li>`).join("");
+  const html = `<!DOCTYPE html><html lang="pt"><head><title>É falso que X</title></head><body>
+    <article><ul>${menu}</ul><h1>É falso que a cidade não tenha nenhum óbito por covid-19</h1>
+    <p>Boato no Facebook inventa que cidade teria conseguido evitar mortes com protocolo de tratamento com hidroxicloroquina e azitromicina</p>
+    <ul>${menu}</ul><ul>${menu}</ul></article></body></html>`;
+  const dom = new JSDOM(html, { url: "https://news.example.com/estadao-verifica/x" });
+  const extraction = extractArticle(dom.window.document, dom.window.location, deps);
+  const thin = readQuality(extraction);
+  assert.equal(thin.thin, true, JSON.stringify(thin));
+  assert.ok(thin.paragraphs < 3);
+
+  assert.deepEqual(readQuality(null), { thin: true, chars: 0, paragraphs: 0 });
 });

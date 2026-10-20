@@ -9,6 +9,7 @@ import { ANALYSIS_SCHEMA_VERSION } from "./schema.js";
 
 // Room for up to MAX_CLAIMS claims with explanations, in JSON.
 export const ANALYSIS_MAX_TOKENS = 8192;
+export const MIN_ARTICLE_CONTENT_CHARS = 600;
 
 export class AnalysisError extends Error {
   /**
@@ -98,6 +99,9 @@ export function articleDocumentProblem(doc) {
   if (typeof d.url !== "string" || !/^https?:\/\//.test(d.url)) return "invalid url";
   if (typeof d.content !== "string" || d.content === "") return "missing content";
   if (d.content.length > MAX_ARTICLE_CONTENT_CHARS) return "content too large";
+  // Defence in depth for ADR-014: the content script gates on paragraphs
+  // too, but a document this short is never worth a provider call.
+  if (d.content.trim().length < MIN_ARTICLE_CONTENT_CHARS) return "content too short";
   if (typeof d.title !== "string") return "invalid title";
   if (!Array.isArray(d.links) || !Array.isArray(d.images)) return "invalid links/images";
   return null;
