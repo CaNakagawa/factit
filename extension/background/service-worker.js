@@ -16,6 +16,14 @@ import { estimateCost } from "../providers/pricing.js";
 import { createProvider, ProviderError } from "../providers/provider.js";
 import { analyzeArticle, AnalysisError, articleDocumentProblem } from "../analysis/engine.js";
 
+// SEC-SECRETS-001: chrome.storage.local holds the API key, and by default
+// content scripts (which run inside every page) may read it. They never
+// need storage, so the area is limited to this worker and extension pages.
+// Runs on every worker start; the call is idempotent.
+chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" }).catch((error) => {
+  console.warn("[Fact It] could not restrict storage to trusted contexts", error?.message);
+});
+
 const settings = createSettingsStore();
 const cache = createAnalysisCache();
 const usageTotals = createUsageTotals();
