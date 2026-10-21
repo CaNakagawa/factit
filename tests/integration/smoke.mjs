@@ -251,6 +251,12 @@ try {
     awaitPromise: true, returnByValue: true,
   });
   check(fromContent.result?.result?.value === "ignored", "content script cannot trigger provider calls", fromContent.result?.result?.value);
+  const storageFromContent = await page.send("Runtime.evaluate", {
+    contextId: isolated2.params.context.id,
+    expression: "(async () => { try { if (!chrome.storage?.local) return 'blocked'; await chrome.storage.local.get(null); return 'READABLE'; } catch (e) { return 'blocked'; } })()",
+    awaitPromise: true, returnByValue: true,
+  });
+  check(storageFromContent.result?.result?.value === "blocked", "content script cannot read chrome.storage.local (API key)", storageFromContent.result?.result?.value);
 
   // 6b. Configure a custom endpoint via the settings page and test it.
   await page.send("Page.navigate", { url: `chrome-extension://${extensionId}/options/options.html` });

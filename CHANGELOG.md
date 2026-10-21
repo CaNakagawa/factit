@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Security: `chrome.storage.local`, which holds the API key, is now
+  limited to the background worker and extension pages
+  (`setAccessLevel` `TRUSTED_CONTEXTS`). Content scripts never used it,
+  but by default they could read it (audit finding SEC-SECRETS-001). The
+  smoke test checks it from the content script's world.
+
 ## 1.6.1 - 2026-10-20
 
 - Fixed: a page whose body had not rendered yet (or sits behind a gate)
