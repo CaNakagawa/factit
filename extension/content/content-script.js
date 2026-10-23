@@ -57,6 +57,7 @@
   let lastCached = false;
   let lastCost = null;
   let lastArticleMeta = null; // author / date / domain for the source-transparency list
+  let hasApiKey = true; // until the background says otherwise; only a yes/no ever reaches this world
 
   function ensureBar() {
     if (!bar || !bar.host.isConnected) {
@@ -67,6 +68,7 @@
       });
       panel = FactIt.createPanel(bar.root);
       if (lastResult) showResult(lastResult, lastCached, lastCost, lastArticleMeta);
+      else if (!hasApiKey) bar.setNeedsKey();
     }
     return bar;
   }
@@ -86,6 +88,7 @@
     try {
       const prefs = await chrome.runtime.sendMessage({ type: "FACTIT_UI_PREFS" });
       if (prefs && prefs.language) FactIt.i18n.setLanguage(prefs.language);
+      if (prefs && typeof prefs.hasApiKey === "boolean") hasApiKey = prefs.hasApiKey;
     } catch {
       // Background unavailable or extension reloaded; keep the default.
     }
@@ -111,6 +114,7 @@
     }
     const article = await buildArticleDocument();
     if (!article) ui.setNoArticle();
+    else if (!hasApiKey) ui.setNeedsKey();
     else if (ui.host.dataset.factitState !== "idle") ui.setIdle();
     return { ok: true, state: ui.host.dataset.factitState };
   }

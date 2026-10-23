@@ -58,6 +58,8 @@ function renderProviderFields() {
     ? t("Leave empty to use {model}.", { model: def.defaultModel })
     : t("Required. Use the model name your server expects.");
   apiKeyInput.placeholder = hasStoredKey ? t("(saved - leave empty to keep)") : "";
+  // Nothing to remove until a key is saved.
+  $("removeKey").disabled = !hasStoredKey;
   apiKeyHint.textContent = def.needsApiKey
     ? t("Required. Stored locally, never shown again.")
     : t("Optional for local servers. Stored locally, never shown again.");
@@ -78,11 +80,21 @@ function suggestPrices() {
     : t("Optional. Used only to estimate the cost of each analysis; leave empty to see token counts only. Check your provider's pricing page.");
 }
 
+// Languages are listed by their own name; "Automatic" is an instruction, so
+// it follows the interface language like the rest of the page.
+function languageOptionText(language) {
+  return language.code === "auto" ? t(language.label) : language.native;
+}
+
 /** Re-render every string after a language change. */
 function applyLanguage(preference) {
   setLanguage(preference);
   document.documentElement.lang = globalThis.FactIt.i18n.language;
   applyStaticI18n();
+  for (const option of languageSelect.options) {
+    const language = LANGUAGES.find((entry) => entry.code === option.value);
+    if (language) option.textContent = languageOptionText(language);
+  }
   renderProviderFields();
   return Promise.all([refreshCacheCount(), refreshUsage()]);
 }
@@ -91,7 +103,7 @@ async function load() {
   for (const language of LANGUAGES) {
     const option = document.createElement("option");
     option.value = language.code;
-    option.textContent = language.native;
+    option.textContent = languageOptionText(language);
     languageSelect.append(option);
   }
   for (const p of PROVIDERS) {
