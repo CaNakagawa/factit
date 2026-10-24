@@ -131,6 +131,8 @@
     Details: "Detalhes",
     Retry: "Tentar de novo",
     "Open settings": "Abrir configurações",
+    "Add your API key to analyze this page": "Adicione sua chave de API para analisar esta página",
+    "Set up API key": "Configurar chave de API",
     "Hide Fact It on this page": "Ocultar o Fact It nesta página",
     "Hide Fact It bar": "Ocultar a barra do Fact It",
     "Analysis failed ({kind}): {message}": "Falha na análise ({kind}): {message}",

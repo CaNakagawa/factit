@@ -13,7 +13,7 @@ import { createSettingsStore } from "../storage/settings.js";
 import { createAnalysisCache } from "../storage/cache.js";
 import { createUsageTotals } from "../storage/usage.js";
 import { estimateCost } from "../providers/pricing.js";
-import { createProvider, ProviderError } from "../providers/provider.js";
+import { createProvider, getProviderDefinition, ProviderError } from "../providers/provider.js";
 import { analyzeArticle, AnalysisError, articleDocumentProblem } from "../analysis/engine.js";
 
 // SEC-SECRETS-001: chrome.storage.local holds the API key, and by default
@@ -154,12 +154,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         .catch((error) => sendResponse({ ok: false, error: errorDetail(error) }));
       return true; // async
 
-    // Interface language only. The key and the rest of the settings never
-    // leave this context (SECURITY.md).
+    // Interface language, and whether a key is saved as a yes/no so the bar
+    // can offer setup instead of an Analyze that can only fail. The key and
+    // the rest of the settings never leave this context (SECURITY.md).
     case "FACTIT_UI_PREFS":
       if (!isContentScript(sender) && !isExtensionPage(sender)) return false;
       settings.get()
-        .then((s) => sendResponse({ language: s.uiLanguage }))
+        .then((s) => {
+          // A local OpenAI-compatible server may need no key at all.
+          const needsKey = getProviderDefinition(s.provider)?.needsApiKey !== false;
+          sendResponse({ language: s.uiLanguage, hasApiKey: !needsKey || Boolean(s.apiKey) });
+        })
         .catch(() => sendResponse({ language: "auto" }));
       return true;
 

@@ -7,6 +7,16 @@
   (`setAccessLevel` `TRUSTED_CONTEXTS`). Content scripts never used it,
   but by default they could read it (audit finding SEC-SECRETS-001). The
   smoke test checks it from the content script's world.
+- Without an API key the bar no longer offers **Analyze** only to fail
+  with "Analysis failed (config)": it says to add a key and offers **Set
+  up API key**. The background tells the content script only whether a
+  key is needed and saved (a yes/no), never the key.
+- Bar: the close button is a 24px target with a focus outline; on narrow
+  screens the brand gives its room to the message, and a truncated error
+  keeps its full text as a tooltip.
+- Settings: "Automatic (browser language)" follows the interface
+  language instead of always showing Portuguese, and **Remove key** is
+  disabled until a key is saved.
 
 ## 1.6.1 - 2026-10-20
 

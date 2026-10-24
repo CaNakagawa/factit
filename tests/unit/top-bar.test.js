@@ -111,7 +111,7 @@ test("error state: Retry for transient errors, Open settings for config/auth; me
   bar.root.querySelector("button:not(.close)").click();
   assert.equal(analyze, 1);
 
-  bar.setError({ kind: "config", message: "An API key is required." });
+  bar.setError({ kind: "auth", message: "The provider rejected the API key." });
   const button = bar.root.querySelector("button:not(.close)");
   assert.equal(button.textContent, "Open settings");
   button.click();
@@ -166,4 +166,29 @@ test("verification metadata never changes the banner", () => {
   bar.setResult(r);
   assert.match(text(bar), /No significant concerns/);
   assert.equal(bar.root.querySelector(".dot").style.background, "rgb(34, 197, 94)");
+});
+
+test("without an API key the bar offers setup, not an Analyze that can only fail", () => {
+  let analyze = 0;
+  let settings = 0;
+  const bar = createTopBar({ onAnalyze: () => analyze++, onOpenSettings: () => settings++ });
+
+  bar.setNeedsKey();
+  assert.equal(bar.host.dataset.factitState, "needs-key");
+  assert.match(text(bar), /Add your API key to analyze this page/);
+  assert.doesNotMatch(text(bar), /Analysis failed|Not analyzed/);
+  const button = bar.root.querySelector("button:not(.close)");
+  assert.equal(button.textContent, "Set up API key");
+  button.click();
+  assert.equal(settings, 1);
+  assert.equal(analyze, 0);
+
+  // The provider's missing-key error lands in the same state.
+  bar.setError({ kind: "config", message: "An API key is required." });
+  assert.equal(bar.host.dataset.factitState, "needs-key");
+
+  // Other config errors still read as a failure, with the full text kept.
+  bar.setError({ kind: "config", message: "A base URL is required for this provider." });
+  assert.equal(bar.host.dataset.factitState, "error");
+  assert.equal(bar.root.querySelector(".text").title, "Analysis failed (config): A base URL is required for this provider.");
 });

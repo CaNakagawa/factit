@@ -52,7 +52,15 @@
       border: 1px solid #7fb3c8; border-radius: 3px; padding: 3px 8px; white-space: nowrap;
     }
     button:hover { background: #3e4c59; }
-    button.close { border: none; padding: 2px 6px; font-size: 14px; color: #9aa5b1; }
+    /* 24x24: the WCAG 2.2 minimum target, inside the 28px bar. */
+    button.close {
+      border: none; padding: 0; width: 24px; height: 24px; flex: none;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 14px; color: #9aa5b1;
+    }
+    button:focus-visible { outline: 2px solid #7fb3c8; outline-offset: 1px; }
+    /* On a phone the message needs the room more than the name does. */
+    @media (max-width: 480px) { .brand { display: none; } }
     .spinner {
       width: 12px; height: 12px; flex: none; border-radius: 50%;
       border: 2px solid #52606d; border-top-color: #7fb3c8; animation: factit-spin .8s linear infinite;
@@ -150,6 +158,14 @@
         render("loading", el("span", "spinner"), el("span", "text muted", t("Analyzing…")));
       },
 
+      // No API key saved yet: offer the setup instead of an Analyze that
+      // can only fail.
+      setNeedsKey() {
+        render("needs-key",
+          el("span", "text muted", t("Add your API key to analyze this page")),
+          actionButton(t("Set up API key"), handlers.onOpenSettings));
+      },
+
       setNoArticle() {
         render("no-article", el("span", "text muted", t("No article detected on this page")));
       },
@@ -197,7 +213,16 @@
       setError(error) {
         const kind = (error && error.kind) || "unknown";
         const message = (error && error.message) || t("Unknown error");
-        const nodes = [el("span", "text", t("Analysis failed ({kind}): {message}", { kind, message }))];
+        if (kind === "config" && /api key/i.test(message)) {
+          // A missing key is setup still to do, not a failed analysis.
+          api.setNeedsKey();
+          return;
+        }
+        const full = t("Analysis failed ({kind}): {message}", { kind, message });
+        const textNode = el("span", "text", full);
+        // The bar truncates long messages; the full text stays reachable.
+        textNode.title = full;
+        const nodes = [textNode];
         if (kind === "config" || kind === "auth") {
           nodes.push(actionButton(t("Open settings"), handlers.onOpenSettings));
         } else if (kind !== "extension_reloaded") {
