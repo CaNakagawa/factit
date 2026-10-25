@@ -316,8 +316,8 @@
     Usage: "Uso",
     "Reset counters": "Zerar contadores",
     "Local analysis cache": "Cache local de análises",
-    "Analyses are kept in this browser profile, keyed by a hash of the article text, so revisiting an unchanged article costs no tokens. Article text itself is not stored.":
-      "As análises ficam neste perfil do navegador, indexadas por um hash do texto do artigo, então revisitar um artigo inalterado não consome tokens. O texto do artigo não é armazenado.",
+    "Analyses are kept in this browser profile, keyed by a hash of the article text, so revisiting an unchanged article costs no tokens. Article text itself is not stored, but an analysis can quote claims from the article.":
+      "As análises ficam neste perfil do navegador, indexadas por um hash do texto do artigo, então revisitar um artigo inalterado não consome tokens. O texto do artigo não é armazenado, mas uma análise pode citar afirmações do artigo.",
     "Clear analysis cache": "Limpar cache de análises",
     "About your API key": "Sobre a sua chave de API",
     "The key is stored in this browser profile's extension storage. That storage is not encrypted: anyone who can read your browser profile can read the key. Use a key with a spending limit and revoke it if you stop using Fact It.":

@@ -37,7 +37,7 @@ const openaiReply = {
 };
 
 const anthropicReply = {
-  model: "claude-opus-5",
+  model: "claude-opus-5-5",
   content: [{ type: "text", text: "OK" }],
   stop_reason: "end_turn",
   usage: { input_tokens: 12, output_tokens: 1 },
@@ -89,7 +89,7 @@ test("anthropic: request shape uses system field, user turn and browser headers"
   assert.equal(call.init.headers["anthropic-version"], "2023-06-01");
   assert.equal(call.init.headers["anthropic-dangerous-direct-browser-access"], "true");
   assert.equal(call.init.headers.authorization, undefined);
-  assert.equal(call.body.model, "claude-opus-5");
+  assert.equal(call.body.model, "claude-opus-5-5", "empty model uses the default");
   assert.equal(call.body.system, "SYS");
   assert.deepEqual(call.body.messages, [{ role: "user", content: "ARTICLE" }]);
   assert.equal(call.body.max_tokens, DEFAULT_MAX_TOKENS);

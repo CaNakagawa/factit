@@ -63,7 +63,7 @@ function fakeProvider(text, { finish = "stop", model = "fake-model" } = {}) {
 // ---------------------------------------------------------------- prompt
 
 test("prompt is versioned and keeps instructions separate from the article", () => {
-  assert.equal(PROMPT_VERSION, "2.3.0");
+  assert.equal(PROMPT_VERSION, "2.3.1");
   const { system, input } = buildPrompt(articleDocument());
   assert.equal(system, SYSTEM_PROMPT);
   assert.doesNotMatch(system, /council voted/, "article text must not leak into system prompt");
@@ -122,6 +122,8 @@ test("prompt states the 2.2 rules: the concern gate, statement kinds and the cha
     // evidence-to-conclusion proportionality
     /correlation presented as causation/,
     /does not need academic-grade evidence/,
+    // 2.3.1: an unsupported assertion always explains itself
+    /UNSUPPORTED_ASSERTION, and "gap" must say what is missing/,
   ]) assert.match(SYSTEM_PROMPT, must);
 });
 

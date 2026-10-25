@@ -64,3 +64,10 @@ test("usage totals: corrupt stored data is sanitized", async () => {
   area.data.usage_totals = { requests: "many", input_tokens: -5, cost_usd: "x", since: 3 };
   assert.deepEqual(await createUsageTotals(area).get(), { requests: 0, input_tokens: 0, output_tokens: 0, cost_usd: 0, since: null });
 });
+
+test("current Claude models have list prices; the default model is among them", async () => {
+  const { anthropicProvider } = await import("../../extension/providers/anthropic.js");
+  assert.deepEqual(knownPrice("anthropic", "claude-opus-5-5"), { input: 4, output: 20 });
+  assert.deepEqual(knownPrice("anthropic", "claude-sonnet-5-5"), { input: 2, output: 10 });
+  assert.ok(knownPrice("anthropic", anthropicProvider.defaultModel), "the default model's cost is pre-filled");
+});

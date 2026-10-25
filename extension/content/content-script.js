@@ -158,7 +158,6 @@
         console.log(
           `[Fact It] analysis (${r.assessment.verification_level}${reply.cached ? ", cached" : ""}) status=${r.assessment.status} confidence=${r.assessment.confidence} claims=${r.claims.length} concerns=${r.concerns.length + r.claims.reduce((n, c) => n + c.concerns.length, 0)} framing=${r.framing.detected ? r.framing.type + "/" + r.framing.strength : "none"} via ${r.meta.provider}/${r.meta.model}`,
         );
-        console.log("[Fact It] analysis result:", r);
         showResult(r, Boolean(reply.cached), reply.cost, articleMetaOf(article));
       } else {
         const err = (reply && reply.error) || { kind: "unknown", message: "No reply from background." };

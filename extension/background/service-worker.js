@@ -94,7 +94,9 @@ async function testProvider() {
   const result = await provider.complete({
     system: "You are a connectivity check. Reply with the single word OK.",
     input: "ping",
-    maxTokens: 16,
+    // Current Claude models always think first; 16 tokens could be spent
+    // before any text, failing the check with "no text block".
+    maxTokens: 256,
   });
   const cost = await recordUsage(result.usage);
   return {

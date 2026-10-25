@@ -101,25 +101,34 @@ Responsible for privileged operations and provider communication.
 
 AI provider adapters.
 
-All providers must expose a common interface.
+All providers expose one text-completion primitive (ADR-004):
 
-Concept:
+    complete({ system, input, maxTokens })
+      -> { text, model, provider, finish, usage }
 
-analyze(document, configuration)
+Adapters know nothing about articles, prompts or the analysis schema.
+They build the HTTP request, parse the reply and map errors. Prompt
+construction and validation live in analysis/, so a new provider is
+one adapter file plus a test, never a second analysis engine.
 
-returns:
-
-AnalysisResult
+The single network egress is the `send` helper in providers/common.js,
+called only from the background worker.
 
 ## analysis/
 
 Responsible for:
 
-- prompts
-- prompt versioning
-- schemas
-- validation
+- prompts and prompt versioning (docs/PROMPT.md)
+- schemas (docs/ANALYSIS_SCHEMA.md, currently 2.3)
+- validation and migration of cached results
 - result normalization
+
+The analysis model is concern detection (ADR-007, ADR-008, ADR-012,
+ADR-013): claims are classified before they are judged, external
+verification is metadata and never a concern, and the overall status is
+derived by the validator from concerns, including those a claim's own
+support level implies. A page whose text was not read is not analyzed
+(ADR-014).
 
 ## storage/
 

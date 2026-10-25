@@ -11,7 +11,7 @@ const API_VERSION = "2023-06-01";
 export const anthropicProvider = Object.freeze({
   id: "anthropic",
   label: "Anthropic",
-  defaultModel: "claude-opus-5",
+  defaultModel: "claude-opus-5-5",
   needsBaseUrl: false,
   needsApiKey: true,
 
