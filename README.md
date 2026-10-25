@@ -54,7 +54,7 @@ Open **Options** (right-click the Fact It icon → Options):
 | Provider | What to enter |
 |---|---|
 | **OpenAI** | API key. Defaults to `gpt-4o-mini`. |
-| **Anthropic** | API key. Defaults to `claude-opus-5`; `claude-sonnet-5` is cheaper. |
+| **Anthropic** | API key. Defaults to `claude-opus-5-5`; `claude-sonnet-5-5` is cheaper. |
 | **OpenAI-compatible** | Base URL + model name, and a key if the server needs one. DeepSeek, Gemini, Mistral, xAI, Groq, OpenRouter, Moonshot, or a local Ollama / LM Studio. |
 
 **Test connection** confirms it works. The key is stored in your browser

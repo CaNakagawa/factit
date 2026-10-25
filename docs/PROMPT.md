@@ -2,7 +2,7 @@
 
 Prompt versioning is mandatory.
 
-Current version: 2.3.0 (`PROMPT_VERSION` in extension/analysis/prompt.js).
+Current version: 2.3.1 (`PROMPT_VERSION` in extension/analysis/prompt.js).
 Bump it on any wording change; cached results are keyed on it.
 
 ## Input Separation
@@ -115,6 +115,9 @@ the output characters versus schema 1.2.
 
 ## Changelog
 
+- 2.3.1 - a claim marked UNSUPPORTED_WITHIN_ARTICLE must fill `gap`
+  with what is missing, so the derived UNSUPPORTED_ASSERTION concern
+  always explains itself instead of naming the statement alone.
 - 2.3.0 - unsourced assertion is a concern (UNSUPPORTED_ASSERTION),
   explicitly including opinion, commentary and almanac pieces: the
   opinion is never a concern, a factual statement inside one still is.

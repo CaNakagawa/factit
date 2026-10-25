@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- Anthropic: the default model is now `claude-opus-5-5`, newer and
+  cheaper than `claude-opus-5` ($4 / $20 against $5 / $25 per 1M tokens).
+  Prices for `claude-opus-5-5` and `claude-sonnet-5-5` are pre-filled.
+- Test connection gives the model 256 output tokens instead of 16:
+  current Claude models always reason first and could spend 16 tokens
+  before writing anything, failing the check.
+- Prompt 2.3.1: a statement asserted as fact with nothing shown must say
+  what is missing, so its concern no longer appears without an
+  explanation.
+- Privacy: the content script no longer prints the full analysis result
+  (which can quote the article) to the page console; it prints a
+  one-line summary. Settings now say that cached analyses can quote
+  claims from the article.
+- ARCHITECTURE.md describes the provider interface as implemented
+  (ADR-004) and points to the current analysis model.
+- Smoke test: the check on what the content script receives from
+  settings now allows the `hasApiKey` boolean added in the no-key bar
+  change, and still rejects anything else.
 - Security: `chrome.storage.local`, which holds the API key, is now
   limited to the background worker and extension pages
   (`setAccessLevel` `TRUSTED_CONTEXTS`). Content scripts never used it,

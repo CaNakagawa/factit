@@ -310,7 +310,7 @@ try {
 
   // Only a real click on the bar's Analyze button runs the analysis.
   const clicked = await clickShadowButton(page, "Analyze");
-  await waitFor(() => consoleText().some((l) => l.startsWith("[Fact It] analysis result:")), { tries: 50 });
+  await waitFor(() => consoleText().some((l) => l.startsWith("[Fact It] analysis (AI_PRELIMINARY")), { tries: 50 });
   const analyzed = { result: { result: { value: clicked ? { ok: true, clicked: true } : undefined } } };
   const resultLine = consoleText().find((l) => l.startsWith("[Fact It] analysis (AI_PRELIMINARY)"));
   check(
@@ -335,8 +335,8 @@ try {
   }) : null;
   const prefsJson = prefs?.result?.result?.value || "";
   check(
-    /^\{"language":"(auto|en|pt)"\}$/.test(prefsJson) && !/sk-|apiKey/.test(prefsJson),
-    "content script gets the language and nothing else from settings", prefsJson,
+    /^\{"language":"(auto|en|pt)","hasApiKey":(true|false)\}$/.test(prefsJson) && !/sk-|apiKey/.test(prefsJson),
+    "content script gets the language and a key-present flag, nothing else from settings", prefsJson,
   );
 
   // A second toolbar click toggles the panel, and clicking Analyze/bar again
@@ -415,7 +415,7 @@ try {
   await sleep(200);
   const reran = await clickShadowButton(page, "Re-analyze (uses tokens)");
   await waitFor(() => consoleText().some((l) => l.includes("analysis requested (re-analyze)")), { tries: 20 });
-  await waitFor(() => consoleText().filter((l) => l.startsWith("[Fact It] analysis result:")).length >= 1, { tries: 50 });
+  await waitFor(() => consoleText().filter((l) => l.startsWith("[Fact It] analysis (AI_PRELIMINARY")).length >= 1, { tries: 50 });
   await sleep(300);
   const barAfterRerun = await shadowText(page, "bar");
   check(reran && providerCalls.length === callsBeforeReload + 1 && !/from cache/.test(barAfterRerun),

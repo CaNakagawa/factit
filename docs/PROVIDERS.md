@@ -34,7 +34,7 @@ Quick recap of the settings fields:
 | API keys | https://console.anthropic.com/settings/keys |
 | Model names | https://docs.anthropic.com/en/docs/about-claude/models/overview |
 | Pricing | https://www.anthropic.com/pricing |
-| Notes | Default model in Fact It: `claude-opus-5`; `claude-sonnet-5` is cheaper. Use ids exactly as listed (`claude-opus-5`, not a dated variant). Prices for known Claude models are pre-filled in the settings. |
+| Notes | Default model in Fact It: `claude-opus-5-5`; `claude-sonnet-5-5` is cheaper. Use ids exactly as listed (`claude-opus-5-5`, not a dated variant). Prices for known Claude models are pre-filled in the settings. |
 
 ## DeepSeek
 

@@ -40,7 +40,7 @@ generated twice.
   "framing": { "detected": false, "type": null, "strength": null, "confidence": 0.0, "observations": [] },
   "summary": "",
   "meta": {
-    "provider": "", "model": "", "prompt_version": "2.3.0", "schema_version": "2.3",
+    "provider": "", "model": "", "prompt_version": "2.3.1", "schema_version": "2.3",
     "analyzed_at": "<ISO 8601>", "content_hash": "<sha256>", "truncated_input": false,
     "finish": "stop", "usage": { "input_tokens": 0, "output_tokens": 0 } | null,
     "validation_issues": [], "migrated_from": null | "1.0" | "1.1" | "1.2" | "2.0"
