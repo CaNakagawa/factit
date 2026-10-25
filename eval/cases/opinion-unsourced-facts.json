@@ -1,0 +1,36 @@
+{
+  "name": "opinion-unsourced-facts",
+  "note": "An opinion column that rests on factual statements with no source and nothing shown (C8).",
+  "expect": {
+    "article_type": [
+      "OPINION"
+    ],
+    "status": [
+      "REVIEW_RECOMMENDED"
+    ],
+    "must_have_concerns": [
+      "UNSUPPORTED_ASSERTION"
+    ]
+  },
+  "read_quality": {
+    "thin": false,
+    "chars": 609,
+    "paragraphs": 4
+  },
+  "article": {
+    "schema_version": "1.0",
+    "content_hash": "abe93f4085da74da8ec40a9286287d22b906562683dec1dd802e0b5cfb1cdd38",
+    "document": {
+      "url": "https://opiniao.example.com/2026/10/a-conversao-do-prefeito",
+      "domain": "opiniao.example.com",
+      "title": "A conversão conveniente do prefeito",
+      "author": "Colunista Exemplo",
+      "published_at": "2026-10-03T08:00:00.000Z",
+      "language": "pt",
+      "content": "O prefeito descobriu a fé às vésperas da eleição. Em minha opinião, a súbita devoção tem mais a ver com pesquisas do que com convicção, e o eleitor deveria desconfiar.Antes de posar de devoto, o prefeito votou três vezes contra o feriado municipal da padroeira e chamou as procissões de atraso, quando ainda era vereador.Também cortou pela metade a verba das paróquias no primeiro ano de mandato e só a recompôs agora, a quarenta dias da votação, numa cerimônia transmitida ao vivo.Cada um acredita no que quiser. Mas é difícil levar a sério uma fé que aparece com o calendário eleitoral e desaparece com ele.",
+      "truncated": false,
+      "links": [],
+      "images": []
+    }
+  }
+}

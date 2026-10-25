@@ -15,7 +15,7 @@ const claim = (over = {}) => ({
   evidence_type: "NAMED_SOURCE", evidence: "e", concerns: [], gap: "", inference: "", ...over,
 });
 const result = (claims, concerns = [], status = null, framing = { detected: false }) => ({
-  schema_version: "2.3",
+  schema_version: "2.4",
   assessment: {
     status: status || (concerns.some((c) => c.severity === "SIGNIFICANT") || claims.some((c) => (c.concerns || []).some((x) => D.severityOf(x) === "SIGNIFICANT")) ? "SIGNIFICANT_CONCERNS"
       : (concerns.length || claims.some((c) => (c.concerns || []).length)) ? "REVIEW_RECOMMENDED" : "NO_SIGNIFICANT_CONCERNS"),

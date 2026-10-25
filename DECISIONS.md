@@ -665,3 +665,85 @@ available.
 Smoke test: a readerable one-paragraph page produces the too-short state
 and zero provider calls. Unit tests cover the menu-and-headline shape and
 the document-size defence.
+---
+
+## ADR-015 - Know what kind of text it is, what it wants you to conclude, and when it is being read
+
+### Context
+
+Reviewing the criteria (2026-10-25) exposed four gaps:
+
+1. **The model did not know today's date.** It got `published_at` but
+   not "now", so `OUTDATED_INFORMATION` could not be judged: a 2020
+   fact-check read in 2026 looked current.
+2. **Every text was held to the same expectations.** A fact-check's
+   verdict ("it is false that X") was treated like an ordinary assertion;
+   C8 (unsourced facts in opinion pieces) risked turning every column
+   yellow; sponsored content was only "commercial framing".
+3. **Nothing said what the article, as a whole, wants the reader to
+   conclude.** The two boxes contrast single claims; the reader had to
+   assemble the picture.
+4. **Whether an accused party was heard** - a basic journalism
+   criterion, observable in the text - existed only as framing.
+
+And the prompt changed three times in one day (2.1 -> 2.3) judged by
+screenshots, with no way to see whether a change fixed one article and
+broke another.
+
+### Decision
+
+**Date.** The article data in the user turn carries `analyzed_on`
+(UTC day). Never the system prompt, which stays byte-stable, and never a
+time of day.
+
+**Article profile (schema 2.4).** An optional `article` object:
+`type` (NEWS, OPINION, ANALYSIS, FACT_CHECK, SPONSORED, PRESS_RELEASE,
+OTHER), `thesis`, `thesis_support` (SUPPORTED, PARTIALLY_SUPPORTED,
+NOT_SUPPORTED, UNCLEAR), `thesis_note`, `other_side` (HEARD,
+SOUGHT_NO_RESPONSE, NOT_SOUGHT, NOT_APPLICABLE, UNCLEAR). The prompt
+gives type-specific expectations: a fact-check must show how it checked;
+the opinion in a column is never a concern but its facts still are; a
+sponsor's claims are the sponsor's.
+
+**Status.** `thesis_support: NOT_SUPPORTED` makes the validator add
+`THESIS_NOT_SUPPORTED` (MODERATE), unless a stronger concern is already
+named - the same rule as ADR-013, so the status agrees with what the
+summary shows. `other_side` **never** affects the status: reporting an
+allegation is legitimate (ADR-008), and a public statement by a named
+person is not an accusation that requires a reply.
+
+**Evaluation set.** `eval/` runs the extension's own pipeline on fixed
+cases with expectations. Synthetic cases are versioned; real articles
+are captured from pages saved in the owner's browser and stay out of git
+(third-party copyright). Running spends tokens and requires `--yes`;
+`--dry` estimates cost.
+
+### Alternatives
+
+**A status penalty for NOT_SOUGHT.** Rejected: it would turn most
+political reporting of public speeches yellow, the over-warning ADR-008
+removed.
+**Weighting the status by the number of concerns.** Rejected: it
+punishes long, detailed articles. The main-conclusion check answers the
+same wish - "is the main point backed?" - directly.
+**Detecting article type from the URL or site sections.** Rejected:
+reputation and site structure are not observations about the text
+(principle: never depend on the publication).
+**A headless crawler for the evaluation set.** Rejected: paywalls and
+bot walls (seen on Estadão) make it unreliable; a page saved in the
+owner's browser is what the extension actually sees.
+
+### Tradeoffs
+
+The system prompt grows from ~10,860 to ~13,590 chars (~+680 tokens,
++25%) on every request. The article profile adds a few short output
+fields. `thesis_support` is a model judgement and can be wrong; it is
+labelled as being about the article's own body, never the world.
+Results cached before 2.4 have no profile and show none.
+
+### Consequences
+
+Unit tests cover the profile, its implied concern, the date in the input
+and the eval harness without network. The evaluation set has not been
+run against a real provider yet: that spends the owner's tokens and
+needs his approval.

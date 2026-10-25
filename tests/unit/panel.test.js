@@ -19,7 +19,7 @@ const claim = (over = {}) => ({
 
 function result(overrides = {}) {
   return {
-    schema_version: "2.3",
+    schema_version: "2.4",
     assessment: { status: "NO_SIGNIFICANT_CONCERNS", confidence: 0.8, rationale: "Every claim is attributed to Microsoft or the CVE record and the statements agree with each other.", verification_level: "AI_PRELIMINARY", external_verification: "NOT_PERFORMED" },
     source_transparency: { named_sources: true, primary_references: true, direct_quotes: true },
     claims: [
@@ -30,7 +30,7 @@ function result(overrides = {}) {
     concerns: [],
     framing: { detected: false, type: null, strength: null, confidence: 0.2, observations: [] },
     summary: "An ordinary vulnerability report; statements are attributed and consistent.",
-    meta: { provider: "openai-compatible", model: "deepseek-chat", prompt_version: "2.3.0", schema_version: "2.3", analyzed_at: "2026-09-18T00:00:00.000Z", usage: { input_tokens: 5650, output_tokens: 900 }, validation_issues: [], migrated_from: null },
+    meta: { provider: "openai-compatible", model: "deepseek-chat", prompt_version: "2.3.0", schema_version: "2.4", analyzed_at: "2026-09-18T00:00:00.000Z", usage: { input_tokens: 5650, output_tokens: 900 }, validation_issues: [], migrated_from: null },
     ...overrides,
   };
 }
@@ -198,7 +198,7 @@ test("About tab: status, verification metadata, provider, model, prompt, tokens,
   assert.match(kv["External verification"], /Not performed \(metadata; never counted as a concern\)/);
   assert.equal(kv.Model, "deepseek-chat");
   assert.equal(kv["Prompt version"], "2.3.0");
-  assert.equal(kv["Schema version"], "2.3");
+  assert.equal(kv["Schema version"], "2.4");
   assert.equal(kv.Tokens, "5,650 input · 900 output");
   assert.equal(kv["Estimated cost"], "$0.020 ($0.011 in + $0.0090 out)");
   assert.equal(kv.Source, "local cache");
@@ -365,4 +365,22 @@ test("interface in Portuguese: chrome translates, the model's text does not", ()
   } finally {
     i18n.setLanguage("en");
   }
+});
+
+test("summary shows the article profile when present, and nothing for older results (ADR-015)", () => {
+  const withProfile = result({ article: { type: "FACT_CHECK", thesis: "It is false that the town had no covid-19 deaths.", thesis_support: "NOT_SUPPORTED", thesis_note: "Only the headline was read; no checking is shown.", other_side: "NOT_APPLICABLE" } });
+  const { root } = mount(withProfile);
+  const summary = text(root.querySelector(".panel"));
+  assert.match(summary, /About the text Type of text Fact-check Main conclusion It is false that the town had no covid-19 deaths\. Not backed by the article Only the headline was read/);
+  assert.doesNotMatch(summary, /Other side/, "no accusation, no other-side line");
+
+  const accused = result({ article: { type: "NEWS", thesis: "t", thesis_support: "SUPPORTED", thesis_note: "", other_side: "NOT_SOUGHT" } });
+  assert.match(text(mount(accused).root.querySelector(".panel")), /Other side No response from the accused party is reported/);
+
+  assert.doesNotMatch(text(mount(result()).root.querySelector(".panel")), /About the text/, "results from before 2.4 show no profile");
+
+  const hostile = result({ article: { type: "NEWS", thesis: "<img src=x onerror=alert(1)>", thesis_support: "UNCLEAR", thesis_note: "<b>x</b>", other_side: "UNCLEAR" } });
+  const h = mount(hostile).root.querySelector(".panel");
+  assert.equal(h.querySelector("img"), null, "model text is rendered as text");
+  assert.match(text(h), /<img src=x onerror=alert\(1\)>/);
 });

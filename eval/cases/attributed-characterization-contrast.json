@@ -1,0 +1,42 @@
+{
+  "name": "attributed-characterization-contrast",
+  "note": "Headline attributes a characterization; the body describes the narrower act (ADR-012). Contrast, no concern.",
+  "expect": {
+    "article_type": [
+      "NEWS"
+    ],
+    "status": [
+      "NO_SIGNIFICANT_CONCERNS"
+    ],
+    "other_side": [
+      "SOUGHT_NO_RESPONSE",
+      "NOT_APPLICABLE"
+    ],
+    "must_contrast": true,
+    "must_not_have_concerns": [
+      "UNSUPPORTED_SERIOUS_ALLEGATION",
+      "HEADLINE_OVERSTATEMENT"
+    ]
+  },
+  "read_quality": {
+    "thin": false,
+    "chars": 740,
+    "paragraphs": 4
+  },
+  "article": {
+    "schema_version": "1.0",
+    "content_hash": "235a527e2aab717f99a71372b409e888fe4be4aa2fe89fad69db63b7bd963869",
+    "document": {
+      "url": "https://news.example.com/2026/10/debate-cancelado",
+      "domain": "news.example.com",
+      "title": "Candidato diz que adversário usou 'amigos no tribunal' para censurar debate",
+      "author": "Repórter Exemplo",
+      "published_at": "2026-10-01T22:00:00.000Z",
+      "language": "pt",
+      "content": "Após a emissora cancelar o debate desta quinta-feira, o candidato Fulano disse em transmissão ao vivo que o adversário Beltrano usou 'amigos no tribunal' para censurar o confronto.A decisão do tribunal eleitoral, assinada pela relatora do caso, proibiu a emissora de exibir um púlpito vazio com o nome de Beltrano e de dirigir perguntas ao candidato ausente.As regras do debate, assinadas por todas as campanhas, incluindo a de Beltrano, previam que o espaço do ausente ficaria vazio e identificado. A campanha de Beltrano não respondeu ao pedido de comentário até a publicação.Pesquisa do instituto Exemplo, registrada no tribunal eleitoral, mostra Beltrano com 42% e Fulano com 38%, empate técnico dentro da margem de erro de dois pontos.",
+      "truncated": false,
+      "links": [],
+      "images": []
+    }
+  }
+}

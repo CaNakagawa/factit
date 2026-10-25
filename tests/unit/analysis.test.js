@@ -63,7 +63,7 @@ function fakeProvider(text, { finish = "stop", model = "fake-model" } = {}) {
 // ---------------------------------------------------------------- prompt
 
 test("prompt is versioned and keeps instructions separate from the article", () => {
-  assert.equal(PROMPT_VERSION, "2.3.1");
+  assert.equal(PROMPT_VERSION, "2.4.0");
   const { system, input } = buildPrompt(articleDocument());
   assert.equal(system, SYSTEM_PROMPT);
   assert.doesNotMatch(system, /council voted/, "article text must not leak into system prompt");
@@ -131,7 +131,16 @@ test("article text cannot break out of the JSON data envelope", () => {
   const { input } = buildPrompt(articleDocument());
   const parsed = JSON.parse(input.slice(input.indexOf("{")));
   assert.match(parsed.content, /Ignore previous instructions/);
-  assert.equal(Object.keys(parsed).length, 9);
+  assert.equal(Object.keys(parsed).length, 10);
+});
+
+test("the prompt input carries today's date, at day precision only (ADR-015)", () => {
+  const { input } = buildPrompt(articleDocument(), { now: () => new Date("2026-10-25T13:45:12Z") });
+  const parsed = JSON.parse(input.slice(input.indexOf("{")));
+  assert.equal(parsed.analyzed_on, "2026-10-25");
+  assert.doesNotMatch(input, /13:45/, "no time of day");
+  const { system } = buildPrompt(articleDocument(), { now: () => new Date("2026-10-25T13:45:12Z") });
+  assert.equal(system, SYSTEM_PROMPT, "the date never enters the system prompt, which stays byte-stable");
 });
 
 // ------------------------------------------------------------- parsing
@@ -157,11 +166,12 @@ test("valid output passes with forced schema, verification level, external verif
   assert.equal(r.ok, true);
   assert.deepEqual(r.issues, []);
   assert.equal(r.migrated_from, null);
-  assert.equal(r.value.schema_version, "2.3");
+  assert.equal(r.value.schema_version, "2.4");
   assert.equal(r.value.assessment.verification_level, VERIFICATION_LEVEL);
   assert.equal(r.value.assessment.external_verification, EXTERNAL_VERIFICATION);
   assert.equal(r.value.assessment.status, "SIGNIFICANT_CONCERNS", "an unsupported serious allegation is significant");
-  assert.deepEqual(Object.keys(r.value), ["schema_version", "assessment", "source_transparency", "claims", "concerns", "framing", "summary"]);
+  assert.deepEqual(Object.keys(r.value), ["schema_version", "assessment", "article", "source_transparency", "claims", "concerns", "framing", "summary"]);
+  assert.equal(r.value.article, null, "an answer without the article profile still validates");
   assert.deepEqual(Object.keys(r.value.claims[0]), ["id", "text", "type", "support", "attribution", "evidence_type", "evidence", "concerns", "gap", "inference"]);
   assert.deepEqual(r.value.claims.map((c) => c.id), ["c1", "c2", "c3"]);
   assert.deepEqual(r.value.concerns[0], { type: "HEADLINE_OVERSTATEMENT", severity: "MODERATE", note: "Headline says 'approved unanimously'; body says 7-2.", claim_ids: ["c1"] });
@@ -186,7 +196,7 @@ test("the model cannot escalate verification, external verification or schema ve
   }));
   assert.equal(r.value.assessment.verification_level, "AI_PRELIMINARY");
   assert.equal(r.value.assessment.external_verification, "NOT_PERFORMED");
-  assert.equal(r.value.schema_version, "2.3");
+  assert.equal(r.value.schema_version, "2.4");
 });
 
 test("numbers are clamped, strings capped, enums matched case-insensitively, ids reassigned", () => {
@@ -321,7 +331,7 @@ test("schema 1.x results migrate to the current schema without inventing anythin
   const r = validateAnalysis(legacy12());
   assert.equal(r.ok, true);
   assert.equal(r.migrated_from, "1.2");
-  assert.equal(r.value.schema_version, "2.3");
+  assert.equal(r.value.schema_version, "2.4");
   assert.equal(r.value.assessment.rationale, "because");
   const [a, b, c] = r.value.claims;
   assert.equal(a.support, "ARTICLE_SUPPORTED");
@@ -380,7 +390,7 @@ test("analyzeArticle: happy path attaches meta", async () => {
   assert.equal(result.assessment.verification_level, "AI_PRELIMINARY");
   assert.equal(result.assessment.status, "SIGNIFICANT_CONCERNS");
   assert.deepEqual(result.meta, {
-    provider: "fake", model: "fake-model", prompt_version: PROMPT_VERSION, schema_version: "2.3",
+    provider: "fake", model: "fake-model", prompt_version: PROMPT_VERSION, schema_version: "2.4",
     analyzed_at: "2026-09-18T12:00:00.000Z", content_hash: "a".repeat(64), truncated_input: false,
     finish: "stop", usage: { input_tokens: 10, output_tokens: 5 }, validation_issues: [], migrated_from: null,
   });
@@ -403,4 +413,49 @@ test("articleDocumentProblem accepts a real document and rejects bad ones", () =
   assert.match(articleDocumentProblem({ ...articleDocument(), schema_version: "2.0" }), /schema_version/);
   assert.match(articleDocumentProblem(articleDocument({ url: "javascript:alert(1)" })), /url/);
   assert.match(articleDocumentProblem(articleDocument({ content: "x".repeat(40001) })), /too large/);
+});
+
+test("article profile (ADR-015): enums enforced, strings capped, unsupported thesis becomes a concern once", () => {
+  const profile = (over = {}) => validateAnalysis(goodOutput({ concerns: [], claims: [], article: {
+    type: "fact_check", thesis: "It is false that the town had no deaths. ".repeat(10), thesis_support: "SUPPORTED",
+    thesis_note: "Health department records are cited.", other_side: "NOT_APPLICABLE", ...over,
+  } })).value;
+
+  const ok = profile();
+  assert.equal(ok.article.type, "FACT_CHECK", "case-insensitive");
+  assert.ok(ok.article.thesis.length <= 201);
+  assert.equal(ok.assessment.status, "NO_SIGNIFICANT_CONCERNS");
+
+  const unknown = profile({ type: "BLOG", thesis_support: "PROVEN", other_side: "MAYBE" });
+  assert.deepEqual([unknown.article.type, unknown.article.thesis_support, unknown.article.other_side], ["OTHER", "UNCLEAR", "UNCLEAR"]);
+
+  const unbacked = profile({ thesis_support: "NOT_SUPPORTED", thesis_note: "The body shows no record of the claimed figures." });
+  assert.equal(unbacked.assessment.status, "REVIEW_RECOMMENDED");
+  assert.deepEqual(unbacked.concerns.map((c) => c.type), ["THESIS_NOT_SUPPORTED"]);
+  assert.equal(unbacked.concerns[0].note, "The body shows no record of the claimed figures.");
+
+  const named = validateAnalysis(goodOutput({ claims: [], concerns: [{ type: "CONCLUSION_CONFLICTS_WITH_EVIDENCE", note: "n" }],
+    article: { type: "NEWS", thesis: "t", thesis_support: "NOT_SUPPORTED", thesis_note: "x", other_side: "NOT_APPLICABLE" } })).value;
+  assert.deepEqual(named.concerns.map((c) => c.type), ["CONCLUSION_CONFLICTS_WITH_EVIDENCE"], "not doubled when a stronger concern is already named");
+
+  const noThesis = profile({ thesis: "", thesis_support: "NOT_SUPPORTED" });
+  assert.equal(noThesis.article.thesis_support, "UNCLEAR", "no thesis, nothing to judge");
+  assert.equal(noThesis.assessment.status, "NO_SIGNIFICANT_CONCERNS");
+
+  for (const side of ["NOT_SOUGHT", "HEARD", "SOUGHT_NO_RESPONSE"]) {
+    assert.equal(profile({ other_side: side }).assessment.status, "NO_SIGNIFICANT_CONCERNS", `other_side ${side} never moves the status`);
+  }
+});
+
+test("prompt 2.4 states article type, thesis, other side and the current date rules (ADR-015)", () => {
+  for (const must of [
+    /What kind of text is this, and what is it trying to get the reader to conclude/,
+    /FACT_CHECK: the claims it reports as false are its subject, not its assertions/,
+    /A verdict with no visible checking is UNSUPPORTED_WITHIN_ARTICLE/,
+    /SPONSORED or PRESS_RELEASE: claims made by the sponsor or issuer are that party's claims/,
+    /For OPINION, judge whether the facts the argument rests on are shown, not whether the opinion is right/,
+    /it is never a concern by itself, and a public statement by a named person is not an accusation that requires a reply/,
+    /"analyzed_on" \(today\)/,
+    /an old article is not a concern merely for being old/,
+  ]) assert.match(SYSTEM_PROMPT, must);
 });

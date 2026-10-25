@@ -38,6 +38,15 @@ real browser with a real key on the packaged zip, then tag v1.0.0.
 
 ## After V1.0
 
+### Unreleased - article profile, current date, evaluation set (ADR-015)
+
+- Schema 2.4 / prompt 2.4.0: article type, main conclusion and its
+  support, other side (shown only), `analyzed_on`.
+- `eval/` harness with four synthetic cases; real cases stay local.
+- 167 unit tests, 31 smoke checks.
+- Not covered: the evaluation set has not been run against a real
+  provider; the prompt grew ~25%.
+
 ### 1.6.1 (2026-10-20) - do not analyze an unread page (ADR-014)
 
 - Content under 600 characters or 3 paragraphs is refused with a

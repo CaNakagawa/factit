@@ -43,7 +43,7 @@ function rawSnippet(text) {
  * @returns {Promise<object>} AnalysisResult with `meta`
  */
 export async function analyzeArticle(articleDocument, provider, options = {}) {
-  const { system, input } = buildPrompt(articleDocument);
+  const { system, input } = buildPrompt(articleDocument, { now: options.now });
   const completion = await provider.complete({ system, input, maxTokens: ANALYSIS_MAX_TOKENS });
 
   if (completion.finish === "refusal") {

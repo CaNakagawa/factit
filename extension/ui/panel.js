@@ -75,6 +75,11 @@
     .panel .claim dl[hidden] { display: none; }
     .panel .claim dt { color: #9aa5b1; }
     .panel .claim dd { margin: 0; color: #e4e7eb; }
+    .panel dl.profile { margin: 4px 0 10px; display: grid; grid-template-columns: 120px 1fr; gap: 6px 10px; font-size: 12px; }
+    .panel dl.profile dt { color: #9aa5b1; }
+    .panel dl.profile dd { margin: 0; color: #e4e7eb; }
+    .panel dl.profile .badge { display: inline-block; margin-top: 4px; }
+    @media (max-width: 520px) { .panel dl.profile { grid-template-columns: 1fr; } }
     .panel .tag { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .06em; border: 1px solid; border-radius: 3px; padding: 0 5px; margin-right: 6px; white-space: nowrap; }
     .panel .boxes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 10px; }
     .panel .boxes.compare .box.believe { border-left-color: #9aa5b1; }
@@ -205,6 +210,26 @@
         counter(n.contradictions, t("contradictions"), n.contradictions ? "#ef4444" : "#9aa5b1"),
       );
       frag.append(counters);
+    }
+
+    const profile = D.articleProfile(result);
+    if (profile) {
+      frag.append(section(t("About the text")));
+      const dl = el("dl", "profile");
+      const row = (k, v) => { dl.append(el("dt", "", k), v); };
+      row(t("Type of text"), el("dd", "", profile.typeLabel));
+      if (profile.thesis) {
+        const dd = el("dd");
+        dd.append(el("div", "", profile.thesis));
+        const pill = el("span", "badge", profile.supportLabel);
+        pill.style.borderColor = profile.supportColor;
+        pill.style.color = profile.supportColor;
+        dd.append(pill);
+        if (profile.note) dd.append(el("div", "muted small", profile.note));
+        row(t("Main conclusion"), dd);
+      }
+      if (profile.otherSide) row(t("Other side"), el("dd", "", profile.otherSide));
+      frag.append(dl);
     }
 
     const level = el("div", "level");
