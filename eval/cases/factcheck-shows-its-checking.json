@@ -1,0 +1,40 @@
+{
+  "name": "factcheck-shows-its-checking",
+  "note": "A fact-check whose verdict is backed by named records. The false claim is its subject, not its assertion.",
+  "expect": {
+    "article_type": [
+      "FACT_CHECK"
+    ],
+    "thesis_support": [
+      "SUPPORTED"
+    ],
+    "status": [
+      "NO_SIGNIFICANT_CONCERNS"
+    ],
+    "must_not_have_concerns": [
+      "UNSUPPORTED_ASSERTION",
+      "UNSUPPORTED_SERIOUS_ALLEGATION"
+    ]
+  },
+  "read_quality": {
+    "thin": false,
+    "chars": 687,
+    "paragraphs": 4
+  },
+  "article": {
+    "schema_version": "1.0",
+    "content_hash": "f8e5720d549429b5cff01650a52b477f6a6e4e1be8a361176ddfd539f3983544",
+    "document": {
+      "url": "https://checagem.example.com/2026/10/vila-nova-obitos",
+      "domain": "checagem.example.com",
+      "title": "É falso que Vila Nova não tenha registrado mortes por gripe",
+      "author": "Equipe de Checagem",
+      "published_at": "2026-10-02T10:00:00.000Z",
+      "language": "pt",
+      "content": "Publicações em redes sociais afirmam que o município de Vila Nova não registrou nenhuma morte por gripe em 2026 graças a um tratamento distribuído pela prefeitura. A afirmação é falsa.Segundo o boletim epidemiológico da Secretaria Estadual de Saúde, publicado em 28 de setembro e consultado pela reportagem, Vila Nova registrou 14 óbitos por gripe entre janeiro e setembro.A Secretaria Municipal de Saúde de Vila Nova confirmou os números por nota e informou que não distribuiu nenhum kit de tratamento. A nota foi enviada à reportagem em 30 de setembro.O conselho regional de medicina afirmou que não há estudo que mostre que o tratamento citado nas publicações reduza mortes por gripe.",
+      "truncated": false,
+      "links": [],
+      "images": []
+    }
+  }
+}

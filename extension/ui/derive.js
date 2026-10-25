@@ -1,4 +1,4 @@
-// Fact It - view derivation (schema 2.3, concern detection).
+// Fact It - view derivation (schema 2.4, concern detection).
 //
 // Classic script; exposes FactIt.derive. Pure functions that turn one
 // validated AnalysisResult into everything the bar, the summary panel and
@@ -50,6 +50,30 @@
 
   const ATTRIBUTION_LABEL = { CLEAR: "Clear", UNCLEAR: "Unclear", NONE: "None" };
 
+  // Article profile (ADR-015). Observations about the text, never verdicts.
+  const ARTICLE_TYPE_LABEL = {
+    NEWS: "News report",
+    OPINION: "Opinion",
+    ANALYSIS: "Analysis",
+    FACT_CHECK: "Fact-check",
+    SPONSORED: "Sponsored content",
+    PRESS_RELEASE: "Press release",
+    OTHER: "Other",
+  };
+  const THESIS_SUPPORT_LABEL = {
+    SUPPORTED: "Backed by the article",
+    PARTIALLY_SUPPORTED: "Partly backed by the article",
+    NOT_SUPPORTED: "Not backed by the article",
+    UNCLEAR: "Cannot tell from the article",
+  };
+  const THESIS_SUPPORT_TONE = { SUPPORTED: "ok", PARTIALLY_SUPPORTED: "caution", NOT_SUPPORTED: "caution", UNCLEAR: "neutral" };
+  const OTHER_SIDE_LABEL = {
+    HEARD: "The accused party's response is included",
+    SOUGHT_NO_RESPONSE: "The article says it sought a response",
+    NOT_SOUGHT: "No response from the accused party is reported",
+    UNCLEAR: "Not clear whether a response was sought",
+  };
+
   const EVIDENCE_LABEL = {
     PRIMARY_DOCUMENT: "Primary document",
     OFFICIAL_RECORD: "Official record",
@@ -73,6 +97,7 @@
     INVALID_CITATION: "Invalid citation",
     HEADLINE_OVERSTATEMENT: "Headline overstates the body",
     UNSUPPORTED_ASSERTION: "Stated as fact, nothing shown",
+    THESIS_NOT_SUPPORTED: "Main conclusion not backed by the article",
     AMBIGUOUS_ATTRIBUTION: "Ambiguous attribution",
     MISLEADING_STATISTIC: "Questionable statistic",
     MATERIAL_MISSING_CONTEXT: "Material context missing",
@@ -228,6 +253,27 @@
     };
   }
 
+  /**
+   * The article profile for the summary, or null for results from before
+   * schema 2.4. The other-side line appears only when an accusation is
+   * reported; it is information, never a concern (ADR-015).
+   */
+  function articleProfile(result) {
+    const a = result && result.article;
+    if (!a || typeof a !== "object") return null;
+    const tone = THESIS_SUPPORT_TONE[a.thesis_support] || "neutral";
+    return {
+      type: a.type,
+      typeLabel: t(ARTICLE_TYPE_LABEL[a.type] || humanize(a.type)),
+      thesis: a.thesis || "",
+      support: a.thesis_support,
+      supportLabel: t(THESIS_SUPPORT_LABEL[a.thesis_support] || humanize(a.thesis_support)),
+      supportColor: TAG_COLOR[tone],
+      note: a.thesis_note || "",
+      otherSide: a.other_side && a.other_side !== "NOT_APPLICABLE" ? t(OTHER_SIDE_LABEL[a.other_side] || humanize(a.other_side)) : "",
+    };
+  }
+
   /** Status and its presentation. */
   function status(result) {
     const s = (result.assessment && result.assessment.status) || "NO_SIGNIFICANT_CONCERNS";
@@ -357,6 +403,7 @@
       STATUS_LABEL, STATUS_MEANING, STATUS_COLOR, SUPPORT_LABEL, ATTRIBUTION_LABEL, CLAIM_TYPE_LABEL, EVIDENCE_LABEL, CONCERN_LABEL,
       BUCKET, BUCKET_LABEL, BUCKET_COLOR,
       TAGS, TAG_COLOR,
+      ARTICLE_TYPE_LABEL, THESIS_SUPPORT_LABEL, OTHER_SIDE_LABEL, articleProfile,
       humanize, pct, confidenceWord, concernLabel, severityOf, tagOf, twoBoxes,
       supportLabel, evidenceLabel, attributionLabel, claimTypeLabel, bucketLabel,
       concernsFor, bucketOf, reasonOf, status, allConcerns, counts, bannerText, keyFindings,

@@ -2,7 +2,7 @@
 
 Prompt versioning is mandatory.
 
-Current version: 2.3.1 (`PROMPT_VERSION` in extension/analysis/prompt.js).
+Current version: 2.4.0 (`PROMPT_VERSION` in extension/analysis/prompt.js).
 Bump it on any wording change; cached results are keyed on it.
 
 ## Input Separation
@@ -115,6 +115,12 @@ the output characters versus schema 1.2.
 
 ## Changelog
 
+- 2.4.0 - question 0: article type (NEWS, OPINION, ANALYSIS,
+  FACT_CHECK, SPONSORED, PRESS_RELEASE, OTHER) with type-specific
+  expectations; the main conclusion and whether the body backs it; and,
+  for accusations, whether the other side was sought (shown, never a
+  concern). Question 8: currency, judged against `analyzed_on`. The
+  system prompt grows to ~13,600 chars (~3,400 tokens), +25% (ADR-015).
 - 2.3.1 - a claim marked UNSUPPORTED_WITHIN_ARTICLE must fill `gap`
   with what is missing, so the derived UNSUPPORTED_ASSERTION concern
   always explains itself instead of naming the statement alone.

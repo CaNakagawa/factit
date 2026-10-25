@@ -37,3 +37,7 @@ CLAUDE.md
 # Local scratch
 *.png.tmp
 scratch/
+
+# Evaluation: real articles are third-party copyrighted text; results are local
+eval/cases/local/
+eval/results/

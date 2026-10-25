@@ -1,4 +1,4 @@
-// Fact It - AnalysisResult schema 2.3 (concern detection).
+// Fact It - AnalysisResult schema 2.4 (concern detection).
 //
 // Enumerations and limits from docs/ANALYSIS_SCHEMA.md. Used by the prompt
 // (to describe the expected output) and by the validator (to enforce it).
@@ -9,9 +9,9 @@
 // result. Every fact about a claim is generated once, on the claim
 // (ADR-007); the UI derives all views from those records.
 
-export const ANALYSIS_SCHEMA_VERSION = "2.3";
+export const ANALYSIS_SCHEMA_VERSION = "2.4";
 // Older results the cache may still hold; the validator migrates them.
-export const ACCEPTED_SCHEMA_VERSIONS = Object.freeze(["1.0", "1.1", "1.2", "2.0", "2.1", "2.2", "2.3"]);
+export const ACCEPTED_SCHEMA_VERSIONS = Object.freeze(["1.0", "1.1", "1.2", "2.0", "2.1", "2.2", "2.3", "2.4"]);
 
 // The only verification level the extension can produce. A future Evidence
 // Engine would introduce another value; the validator always forces this
@@ -84,6 +84,7 @@ export const CONCERN_SEVERITY = Object.freeze({
   // Moderate: concrete reasons for caution.
   HEADLINE_OVERSTATEMENT: "MODERATE",
   UNSUPPORTED_ASSERTION: "MODERATE", // stated as fact with no source and nothing shown (ADR-013)
+  THESIS_NOT_SUPPORTED: "MODERATE", // the article's main conclusion has nothing in the body behind it (ADR-015)
   AMBIGUOUS_ATTRIBUTION: "MODERATE", // attribution matters here and is unclear
   MISLEADING_STATISTIC: "MODERATE",
   MATERIAL_MISSING_CONTEXT: "MODERATE", // omission that changes the reading of the central claim
@@ -111,6 +112,29 @@ export const CONTRADICTION_CONCERNS = Object.freeze([
   "CONCLUSION_CONFLICTS_WITH_EVIDENCE",
 ]);
 
+// The kind of text, observed from the text itself (ADR-015). It changes what
+// the analysis expects to see, never the truth of anything: a column may
+// opine without sources, a fact-check must show how it checked, a
+// sponsored piece should say it is sponsored.
+export const ARTICLE_TYPES = Object.freeze([
+  "NEWS", // reporting of events
+  "OPINION", // column, editorial, commentary, almanac
+  "ANALYSIS", // explanatory or interpretive journalism
+  "FACT_CHECK", // checks a claim made elsewhere and gives a verdict
+  "SPONSORED", // paid or partner content, advertorial
+  "PRESS_RELEASE", // institutional or corporate announcement
+  "OTHER",
+]);
+
+// Whether the article's own body supports its main conclusion. Says
+// nothing about the world (ADR-015).
+export const THESIS_SUPPORT = Object.freeze(["SUPPORTED", "PARTIALLY_SUPPORTED", "NOT_SUPPORTED", "UNCLEAR"]);
+
+// For accusations against an identifiable person or organization: did the
+// article seek their response? Displayed, never a concern by itself
+// (ADR-015, ADR-008).
+export const OTHER_SIDE = Object.freeze(["HEARD", "SOUGHT_NO_RESPONSE", "NOT_SOUGHT", "NOT_APPLICABLE", "UNCLEAR"]);
+
 export const FRAMING_TYPES = Object.freeze([
   "POLITICAL",
   "IDEOLOGICAL",
@@ -133,11 +157,19 @@ export const LIMITS = Object.freeze({
   MAX_SUMMARY_CHARS: 400,
   MAX_FRAMING_OBSERVATIONS: 4,
   MAX_OBSERVATION_CHARS: 100,
+  MAX_THESIS_CHARS: 200,
 });
 
 // Human-readable shape handed to the model. Kept in one place so the
 // prompt and the validator cannot drift apart. Deliberately compact.
 export const OUTPUT_SHAPE = `{
+  "article": {
+    "type": "${ARTICLE_TYPES.join('" | "')}",
+    "thesis": "<what the article wants the reader to conclude, in one sentence, max ${LIMITS.MAX_THESIS_CHARS} chars>",
+    "thesis_support": "${THESIS_SUPPORT.join('" | "')}",
+    "thesis_note": "<what in the body does or does not back the thesis, max ${LIMITS.MAX_FIELD_CHARS} chars>",
+    "other_side": "${OTHER_SIDE.join('" | "')}"
+  },
   "assessment": {
     "confidence": <0.0-1.0: your confidence in this analysis>,
     "rationale": "<1-2 sentences, max ${LIMITS.MAX_RATIONALE_CHARS} chars: why there are, or are not, concerns>"

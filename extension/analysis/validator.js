@@ -1,4 +1,4 @@
-// Fact It - AnalysisResult validation (schema 2.3).
+// Fact It - AnalysisResult validation (schema 2.4).
 //
 // LLM output is UNTRUSTED. This module turns whatever text the model
 // returned into either a schema-conformant AnalysisResult or a clear
@@ -23,6 +23,9 @@ import {
   CONCERN_SEVERITY,
   SUPPORT_CONCERN,
   FRAMING_TYPES,
+  ARTICLE_TYPES,
+  THESIS_SUPPORT,
+  OTHER_SIDE,
   FRAMING_STRENGTHS,
   LIMITS,
 } from "./schema.js";
@@ -341,6 +344,25 @@ export function validateAnalysis(raw) {
     });
   }
 
+  // article profile (ADR-015): optional, so results from before 2.4 and
+  // models that omit it still validate; then nothing is shown for it.
+  const ar = raw.article && typeof raw.article === "object" ? raw.article : null;
+  const article = ar ? {
+    type: oneOf(ar.type, ARTICLE_TYPES) || "OTHER",
+    thesis: str(ar.thesis, LIMITS.MAX_THESIS_CHARS),
+    thesis_support: oneOf(ar.thesis_support, THESIS_SUPPORT) || "UNCLEAR",
+    thesis_note: str(ar.thesis_note, LIMITS.MAX_FIELD_CHARS),
+    other_side: oneOf(ar.other_side, OTHER_SIDE) || "UNCLEAR",
+  } : null;
+  if (article && !article.thesis) article.thesis_support = "UNCLEAR";
+  // A main conclusion the body does not back is a signal about the article,
+  // shown as a concern so the status agrees with the profile (ADR-013/015).
+  // Not doubled when the model already named a stronger version of it.
+  const STRONGER = ["THESIS_NOT_SUPPORTED", "CONCLUSION_CONFLICTS_WITH_EVIDENCE", "HEADLINE_CONTRADICTS_BODY"];
+  if (article && article.thesis_support === "NOT_SUPPORTED" && !concerns.some((c) => STRONGER.includes(c.type)) && concerns.length < LIMITS.MAX_CONCERNS) {
+    concerns.push({ type: "THESIS_NOT_SUPPORTED", severity: CONCERN_SEVERITY.THESIS_NOT_SUPPORTED, note: article.thesis_note, claim_ids: [] });
+  }
+
   // framing
   const fr = raw.framing && typeof raw.framing === "object" ? raw.framing : null;
   if (!fr) errors.push("missing framing object");
@@ -382,6 +404,7 @@ export function validateAnalysis(raw) {
     value: {
       schema_version: ANALYSIS_SCHEMA_VERSION, // never taken from the model
       assessment,
+      article,
       source_transparency,
       claims,
       concerns,

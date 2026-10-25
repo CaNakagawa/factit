@@ -1,6 +1,6 @@
 # Fact It - AnalysisResult
 
-Schema Version: 2.3 (claim-centric, concern detection; see DECISIONS.md ADR-007, ADR-008, ADR-012 and ADR-013)
+Schema Version: 2.4 (claim-centric, concern detection; see DECISIONS.md ADR-007, ADR-008, ADR-012, ADR-013 and ADR-015)
 
 Produced by `analyzeArticle` (extension/analysis/engine.js) from the
 model's JSON after validation (extension/analysis/validator.js).
@@ -11,7 +11,7 @@ generated twice.
 
 ```
 {
-  "schema_version": "2.3",
+  "schema_version": "2.4",
   "assessment": {
     "status": "NO_SIGNIFICANT_CONCERNS",
     "confidence": 0.0,
@@ -40,7 +40,7 @@ generated twice.
   "framing": { "detected": false, "type": null, "strength": null, "confidence": 0.0, "observations": [] },
   "summary": "",
   "meta": {
-    "provider": "", "model": "", "prompt_version": "2.3.1", "schema_version": "2.3",
+    "provider": "", "model": "", "prompt_version": "2.4.0", "schema_version": "2.4",
     "analyzed_at": "<ISO 8601>", "content_hash": "<sha256>", "truncated_input": false,
     "finish": "stop", "usage": { "input_tokens": 0, "output_tokens": 0 } | null,
     "validation_issues": [], "migrated_from": null | "1.0" | "1.1" | "1.2" | "2.0"
@@ -144,13 +144,30 @@ UNCLEAR imply nothing (ADR-008).
 | Code | Severity |
 |---|---|
 | HEADLINE_CONTRADICTS_BODY, INTERNAL_CONTRADICTION, NUMERICAL_INCONSISTENCY, UNSUPPORTED_SERIOUS_ALLEGATION, SOURCE_CLAIM_MISMATCH, CONCLUSION_CONFLICTS_WITH_EVIDENCE, INVALID_CITATION | SIGNIFICANT |
-| HEADLINE_OVERSTATEMENT, AMBIGUOUS_ATTRIBUTION, MISLEADING_STATISTIC, MATERIAL_MISSING_CONTEXT, OPINION_PRESENTED_AS_FACT, SELECTIVE_EVIDENCE, EXTRAORDINARY_CLAIM_UNSUPPORTED, OUTDATED_INFORMATION, MISLEADING_FRAMING | MODERATE |
+| HEADLINE_OVERSTATEMENT, UNSUPPORTED_ASSERTION, THESIS_NOT_SUPPORTED, AMBIGUOUS_ATTRIBUTION, MISLEADING_STATISTIC, MATERIAL_MISSING_CONTEXT, OPINION_PRESENTED_AS_FACT, SELECTIVE_EVIDENCE, EXTRAORDINARY_CLAIM_UNSUPPORTED, OUTDATED_INFORMATION, MISLEADING_FRAMING | MODERATE |
 
 Claim-level concerns live in `claims[].concerns` (codes only; the
 claim's `gap` / `inference` carry the substance). `concerns[]` (max 10)
 is for problems about the article as a whole, with a `note` (≤ 160)
 and `claim_ids`. Severity is fixed per code. A concern exists only when
 the content gives a concrete reason; empty lists are normal.
+
+## Article profile (2.4, ADR-015)
+
+`article` is optional: results from before 2.4 and models that omit it
+still validate, and the UI then shows nothing for it.
+
+| Field | Values | Meaning |
+|---|---|---|
+| `type` | `NEWS`, `OPINION`, `ANALYSIS`, `FACT_CHECK`, `SPONSORED`, `PRESS_RELEASE`, `OTHER` | Kind of text, observed from the text. Changes what the analysis expects, never what is true. Unknown values become `OTHER` |
+| `thesis` | ≤ 200 chars | The one conclusion the article wants the reader to reach, in neutral words |
+| `thesis_support` | `SUPPORTED`, `PARTIALLY_SUPPORTED`, `NOT_SUPPORTED`, `UNCLEAR` | Whether the body backs the thesis. `NOT_SUPPORTED` makes the validator add `THESIS_NOT_SUPPORTED` (moderate) unless a stronger concern (`CONCLUSION_CONFLICTS_WITH_EVIDENCE`, `HEADLINE_CONTRADICTS_BODY`) is already named. No thesis means `UNCLEAR` |
+| `thesis_note` | ≤ 160 chars | What in the body does or does not back it |
+| `other_side` | `HEARD`, `SOUGHT_NO_RESPONSE`, `NOT_SOUGHT`, `NOT_APPLICABLE`, `UNCLEAR` | For accusations against an identifiable party: whether their response was sought. **Shown, never a concern** |
+
+The prompt input also carries `analyzed_on` (today, UTC, day precision)
+so `OUTDATED_INFORMATION` can be judged. It is never in the system
+prompt, which stays byte-stable.
 
 ## Source transparency
 

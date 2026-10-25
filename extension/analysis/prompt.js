@@ -1,4 +1,4 @@
-// Fact It - analysis prompt (schema 2.3, concern detection).
+// Fact It - analysis prompt (schema 2.4, concern detection).
 //
 // Versioned. Bump PROMPT_VERSION on any wording change: cached results
 // are labelled with it.
@@ -22,7 +22,7 @@
 
 import { OUTPUT_SHAPE, LIMITS } from "./schema.js";
 
-export const PROMPT_VERSION = "2.3.1";
+export const PROMPT_VERSION = "2.4.0";
 
 const MAX_LINKS_IN_PROMPT = 20;
 
@@ -35,6 +35,12 @@ Before reporting any concern, test it. A concern must be SPECIFIC (tied to ident
 None of these is a concern by itself: Fact It did not verify the claim; the claim is attributed to someone; the article contains opinion, advice or advocacy; the subject is political or controversial; the article criticizes or praises someone; more context could exist; the source is unfamiliar; you disagree with the conclusion; you would have written the article differently.
 
 Work through these questions:
+0. What kind of text is this, and what is it trying to get the reader to conclude? Set article.type from the text itself: NEWS, OPINION (column, editorial, commentary, almanac), ANALYSIS, FACT_CHECK (checks a claim made elsewhere and gives a verdict), SPONSORED (paid or partner content), PRESS_RELEASE, OTHER. The type changes what you expect to see, never what is true:
+   - OPINION: the opinion is never a concern; factual statements inside it still are (question 3).
+   - FACT_CHECK: the claims it reports as false are its subject, not its assertions. Its own verdict ("it is false that X") is its main claim: judge whether the article shows how it checked (named sources, records, data). A verdict with no visible checking is UNSUPPORTED_WITHIN_ARTICLE.
+   - SPONSORED or PRESS_RELEASE: claims made by the sponsor or issuer are that party's claims. Say in the summary whether the text discloses that it is sponsored; do not treat a disclosed advertisement as deceptive.
+   State article.thesis: the one conclusion the article as a whole wants the reader to reach, in your own neutral words. Set article.thesis_support from the body only: SUPPORTED, PARTIALLY_SUPPORTED, NOT_SUPPORTED (the body gives nothing that backs it), UNCLEAR. For OPINION, judge whether the facts the argument rests on are shown, not whether the opinion is right. article.thesis_note says what in the body does or does not back it.
+   When the article reports an accusation against an identifiable person or organization, set article.other_side: HEARD (their response is included), SOUGHT_NO_RESPONSE (the article says it asked), NOT_SOUGHT, or UNCLEAR. Otherwise NOT_APPLICABLE. This is shown to the reader as information; it is never a concern by itself, and a public statement by a named person is not an accusation that requires a reply.
 1. What does each important statement actually assert? Classify before evaluating: FACTUAL (a fact the article states or reports), ALLEGATION (an accusation), OPINION (a judgment presented as if it were fact), INTERPRETATION (the article's reading of facts it presents), RECOMMENDATION (advice), PREDICTION (about the future). List the important ones (up to ${LIMITS.MAX_CLAIMS}). A statement the article reports with attribution ("Microsoft said...", "according to the filing...") is ordinary reporting: type FACTUAL, support ATTRIBUTED, attribution CLEAR. That is a normal, healthy record, not a concern. Advice and predictions are not unproven factual claims: "enable MFA to reduce account compromise" is a RECOMMENDATION resting on a factual premise. Do not mark such statements UNSUPPORTED_WITHIN_ARTICLE and do not raise a concern because the article does not demonstrate them.
 2. Are the claims internally consistent? Do numbers, dates and statements agree with each other?
 3. Are important claims reasonably attributed? Attribution matters most for accusations, surprising numbers and contested points; it is not required for routine descriptive statements. When the article asserts something as fact and shows nothing for it and names no source, that is UNSUPPORTED_WITHIN_ARTICLE with concern UNSUPPORTED_ASSERTION, and "gap" must say what is missing (no source named, no document, no data shown). Apply this in opinion, commentary and almanac pieces too: the opinion itself is never a concern, but a factual statement inside one is still a factual statement, and a piece built on unsourced factual assertions should say so.
@@ -42,9 +48,10 @@ Work through these questions:
 5. Does the headline accurately represent the body? Flag only meaningful discrepancies: "study proves X" over a body saying correlation only is a concern; "vendor patches critical flaw" over a body describing exactly that is not. A headline that carries a characterization and attributes it ("X says Y censored Z") is reporting the characterization accurately: that is NOT a concern. When the body also describes the specific act being characterized, record the contrast on that claim instead of raising a concern: "inference" = what the wording invites the reader to take away, "gap" = the narrower act the article itself documents. Leave "concerns" empty; the reader is shown the two side by side.
 6. Are statistics presented consistently and without misleading comparison?
 7. Does the article contradict evidence it presents, or claim substantially more than its own evidence supports? Watch for correlation presented as causation, preliminary findings presented as settled, one case generalized to a population, possibility presented as certainty. Ordinary factual reporting does not need academic-grade evidence.
-8. Is context missing in a way that MATERIALLY changes the reading of a central claim? Every article could say more; that is not missing context. Ask: would the omitted information change how a reader understands the claim? If not, no concern.
-9. Is framing present strongly enough to affect interpretation? Framing requires observable characteristics: selective emphasis, loaded language, asymmetric presentation, omitted counter-information, ordering that pushes one interpretation, persuasive language mixed into reporting. The topic being political, controversial, commercial, religious or security-related is not framing. If nothing observable is present, framing.detected is false; do not report LOW framing just to fill the field.
-10. Is there any concrete reason to warn the reader? If not, return empty concerns. That is a successful result: it means no meaningful warning signals were found, not that the article is true.
+8. Is the information current? The input gives "analyzed_on" (today) and "published_at". A date, figure or status that the text presents as current but that may have changed since publication is OUTDATED_INFORMATION only when the gap matters to the central claim; an old article is not a concern merely for being old.
+9. Is context missing in a way that MATERIALLY changes the reading of a central claim? Every article could say more; that is not missing context. Ask: would the omitted information change how a reader understands the claim? If not, no concern.
+10. Is framing present strongly enough to affect interpretation? Framing requires observable characteristics: selective emphasis, loaded language, asymmetric presentation, omitted counter-information, ordering that pushes one interpretation, persuasive language mixed into reporting. The topic being political, controversial, commercial, religious or security-related is not framing. If nothing observable is present, framing.detected is false; do not report LOW framing just to fill the field.
+11. Is there any concrete reason to warn the reader? If not, return empty concerns. That is a successful result: it means no meaningful warning signals were found, not that the article is true.
 
 Recording rules:
 - Each claim is one compact record. For ordinary claims with no concern, "evidence" is a few words (e.g. "Microsoft advisory, linked"), "gap" and "inference" are "" and "concerns" is []. The single exception is the attributed characterization in question 5: there "gap" and "inference" are filled while "concerns" stays empty. Spend words only on actual concerns: there, "gap" states what is missing or inconsistent and "inference" states a POSSIBLE reader inference the text invites but does not establish, as textual observations, never as claims about the author's intent or ideology or about readers.
@@ -61,11 +68,18 @@ Recording rules:
 Output: ONLY one JSON object, no code fences, no prose before or after, exactly this shape:
 ${OUTPUT_SHAPE}`;
 
+// Today's date (UTC), so the model can tell an old article from a current
+// one (question 8). Day precision only: nothing that identifies the user.
+function isoDay(date) {
+  return date instanceof Date && Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : null;
+}
+
 /**
- * @param {object} articleDocument ArticleDocument (docs/ARTICLE_SCHEMA.md)
+ * @param {object} articleDocument ArticleDocument
+ * @param {{ now?: () => Date }} [options] (docs/ARTICLE_SCHEMA.md)
  * @returns {{ system: string, input: string }}
  */
-export function buildPrompt(articleDocument) {
+export function buildPrompt(articleDocument, options = {}) {
   const d = articleDocument.document;
   // Defensive coercion: the document crossed a message boundary. Every
   // field is bounded here regardless of what normalization promised.
@@ -82,6 +96,7 @@ export function buildPrompt(articleDocument) {
     author: opt(d.author, 200),
     published_at: opt(d.published_at, 40),
     language: opt(d.language, 35),
+    analyzed_on: isoDay(options.now ? options.now() : new Date()),
     truncated: d.truncated === true,
     links,
     content: str(d.content, 40000),

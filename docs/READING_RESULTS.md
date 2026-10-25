@@ -41,6 +41,18 @@ Interface text follows your **Interface language** setting; the
 analysis text itself is written in the language of the article and is
 never translated.
 
+## About the text
+
+From version 2.4 the summary also says what kind of text this is (news,
+opinion, analysis, fact-check, sponsored content, press release), what
+the article as a whole wants you to conclude, and whether its own body
+backs that conclusion. A conclusion the body does not back counts as a
+concern.
+
+When the article reports an accusation against an identifiable person
+or organization, it also says whether their response was sought. That
+line is information only: it never changes the status.
+
 ## The detailed analysis
 
 **Detailed analysis** opens five tabs:

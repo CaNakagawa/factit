@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- Analysis now says what kind of text it read (news, opinion, analysis,
+  fact-check, sponsored content, press release) and applies the
+  expectations that fit: a fact-check must show how it checked, a
+  column may opine without sources but not state facts without them, a
+  sponsored piece is the sponsor's claims. Shown in the summary under
+  **About the text** (ADR-015)
+- **Main conclusion**: what the article as a whole wants the reader to
+  conclude, and whether its own body backs it. A conclusion the body
+  does not back is a concern (moderate)
+- **Other side**: for accusations against an identifiable party, whether
+  their response was sought. Information only, never a concern
+- The model is told today's date, so it can tell an old article from a
+  current one (`analyzed_on`, day precision, in the article data only)
+- Evaluation set: `eval/` measures each prompt version against fixed
+  cases with expected outcomes. Four synthetic cases are versioned; real
+  articles are captured from pages saved in your own browser and stay
+  local. `node eval/run.mjs --dry` estimates the cost; `--yes` runs it
+- Schema 2.4, prompt 2.4.0. The system prompt grows about 25% (~3,400
+  tokens)
 - Anthropic: the default model is now `claude-opus-5-5`, newer and
   cheaper than `claude-opus-5` ($4 / $20 against $5 / $25 per 1M tokens).
   Prices for `claude-opus-5-5` and `claude-sonnet-5-5` are pre-filled.
