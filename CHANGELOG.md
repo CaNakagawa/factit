@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fixed: posts on Substack (and any site whose article container has a
+  class such as `newsletter-post`, `share-…` or `related-…`) were reduced
+  to a single reader comment and refused as too short. The noise filter
+  matched the article's own container. A node that holds at least half
+  of the page's paragraph text is now kept as the article; real sign-up
+  boxes and share widgets are still removed.
 - Analysis now says what kind of text it read (news, opinion, analysis,
   fact-check, sponsored content, press release) and applies the
   expectations that fit: a fact-check must show how it checked, a

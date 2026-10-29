@@ -22,6 +22,9 @@
   const MIN_CONTENT_CHARS = 600;
   const MIN_PARAGRAPHS = 3;
   const PARAGRAPH_MIN_CHARS = 80;
+  // A node matching NOISE_SELECTOR is kept when it holds at least this
+  // share of the page's paragraph text: it is the article itself.
+  const MAX_NOISE_PROSE_SHARE = 0.5;
   const BLOCK_SELECTOR = "p,li,blockquote,div,section,article,h1,h2,h3,h4,h5,h6,ul,ol,table";
   // Widgets Readability tends to keep although they are not article prose:
   // sidebars, media players, embedded frames, forms, teasers. Removed from
@@ -55,6 +58,15 @@
   function nullable(value) {
     const t = text(value);
     return t === "" ? null : t;
+  }
+
+  // Characters of paragraph text under a node: the measure of how much of
+  // the article a node would take with it if removed as noise.
+  function proseChars(node) {
+    if (!node || typeof node.querySelectorAll !== "function") return 0;
+    let n = 0;
+    for (const p of node.querySelectorAll("p")) n += (p.textContent || "").length;
+    return n;
   }
 
   // Blocks of running text: a block with no block child of its own and at
@@ -122,9 +134,16 @@
 
     // Readability mutates the DOM it is given.
     const clone = doc.cloneNode(true);
+    const proseTotal = proseChars(clone.body);
     for (const node of clone.querySelectorAll(NOISE_SELECTOR)) {
-      // Keep <form>/<nav> etc. only if they would remove the whole body.
-      if (node !== clone.body && node !== clone.documentElement) node.remove();
+      if (!node.isConnected) continue; // already removed with an ancestor
+      if (node === clone.body || node === clone.documentElement) continue;
+      // The selectors match class names, and class names lie: Substack
+      // wraps every post in <article class="newsletter-post">. A "noise"
+      // node that holds most of the page's prose is the article, not a
+      // widget, so it stays.
+      if (proseTotal > 0 && proseChars(node) >= proseTotal * MAX_NOISE_PROSE_SHARE) continue;
+      node.remove();
     }
     const article = new Readability(clone, {
       serializer: (element) => element,

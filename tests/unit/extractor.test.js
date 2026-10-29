@@ -124,3 +124,23 @@ test("a full article is a substantial read; menus and a headline are not (ADR-01
 
   assert.deepEqual(readQuality(null), { thin: true, chars: 0, paragraphs: 0 });
 });
+
+test("a noise class on the article's own container does not delete the article (Substack)", () => {
+  // Substack wraps every post in <article class="newsletter-post">, which
+  // matches the [class*="newsletter"] rule meant for sign-up boxes.
+  const para = (i) => `<p>Paragraph ${i} of the essay, long enough to count as running prose for the read-quality gate and for Readability alike.</p>`;
+  const html = `<!DOCTYPE html><html lang="en"><head><title>The Rise and Fall of Agent Civilizations</title></head><body>
+    <div class="newsletter-signup"><p>Subscribe to the newsletter</p><form><input></form></div>
+    <article class="typography newsletter-post post"><h1>The Rise and Fall of Agent Civilizations</h1>
+      ${Array.from({ length: 12 }, (_, i) => para(i + 1)).join("")}
+      <div class="share-buttons"><p>Share</p></div>
+    </article>
+    <div class="comments"><p>A reader: great post.</p></div></body></html>`;
+  const dom = new JSDOM(html, { url: "https://www.example-substack.com/p/agents" });
+  const result = extractArticle(dom.window.document, dom.window.location, deps);
+  assert.match(result.content, /Paragraph 1 of the essay/);
+  assert.match(result.content, /Paragraph 12 of the essay/);
+  assert.doesNotMatch(result.content, /Subscribe to the newsletter/, "the real sign-up box is still removed");
+  assert.doesNotMatch(result.content, /Share/, "small widgets inside the article are still removed");
+  assert.equal(readQuality(result).thin, false);
+});
