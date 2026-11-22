@@ -1,0 +1,60 @@
+{
+  "project": "Fact It (factit browser extension)",
+  "date": "2026-11-22",
+  "branch": "main",
+  "commit": "1d248f576d392bfd7b8f8c9e063db372ccc0690a",
+  "scope": "Follow-up to the 2026-10-01 audit (docs/security-audit/findings.json, commit f69ddd8, v1.4.0), which was never committed and is added unchanged in this pull request. Covered: the 19 commits and 17 extension/script files changed since f69ddd8 (v1.4.0 -> v1.6.1), re-verification of both 2026-10-01 items, and npm audit.",
+  "methodology": "ai_sec.md phases 1-8 as a delta round: full diff of manifest, background service worker, content script, extractor, providers, prompt, options and UI files; sink scan (innerHTML, insertAdjacentHTML, href/src assignment, eval/Function, fetch, tabs/scripting APIs) on added lines; npm audit with dependency-type check.",
+  "architecture": {
+    "flow": "WEB PAGE -> content script (isolated world: Readability extraction, top bar UI in shadow DOM)\n  -> chrome.runtime message -> background service worker (settings, cache, usage)\n  -> provider (Anthropic / OpenAI / Google / OpenAI-compatible base URL) with the user's API key\n  -> structured JSON verdict -> validator -> content script panel",
+    "components": [
+      "Manifest V3 extension (Chrome >= 116), permissions: storage; content scripts on http/https pages",
+      "API key in chrome.storage.local, read only in the service worker and extension pages",
+      "Model output validated against a JSON schema before rendering"
+    ],
+    "trust_boundaries": [
+      "Web page content -> extractor -> model prompt (untrusted article text)",
+      "Content script (page-adjacent) <-> service worker (holds the key)",
+      "Model output -> panel rendering (untrusted)",
+      "Extension -> user-chosen provider endpoint"
+    ]
+  },
+  "attack_surface": {
+    "summary": "Unchanged structure since 2026-10-01. New in this period: a read-quality gate that skips thin pages before any provider call, a hasApiKey yes/no in FACTIT_UI_PREFS, prompt v2.2 classification rules, removal of full-result console logging.",
+    "items": [
+      "Messages from content scripts: FACTIT_UI_PREFS (language + hasApiKey boolean), analysis request (article document)",
+      "Provider responses -> schema validator -> panel"
+    ]
+  },
+  "executive_summary": "No new findings. SEC-SECRETS-001 from 2026-10-01 (API key readable from the content-script context through chrome.storage.local) is fixed: the service worker calls chrome.storage.local.setAccessLevel({accessLevel: 'TRUSTED_CONTEXTS'}) on every start, so content scripts can no longer read the store. The only new data sent to the page context is a boolean (hasApiKey). The full analysis result is no longer written to the page console. SEC-CHAIN-001 (informational: a custom OpenAI-compatible endpoint receives the article and key) is unchanged and remains a user-chosen design trade-off. npm audit shows 2 high advisories, both in transitive dev dependencies (jsdom/undici, source-map-js) that are not packaged into the extension.",
+  "findings": [],
+  "strengths": [
+    {"title": "SEC-SECRETS-001 closed", "evidence": "extension/background/service-worker.js:23 chrome.storage.local.setAccessLevel({ accessLevel: \"TRUSTED_CONTEXTS\" }); manifest minimum_chrome_version 116 supports the API."},
+    {"title": "Key never crosses into the page world", "evidence": "FACTIT_UI_PREFS returns { language, hasApiKey: boolean }; sender checked with isContentScript/isExtensionPage."},
+    {"title": "Less page-console exposure", "evidence": "content-script.js: removed console.log of the full analysis result; summaries only."},
+    {"title": "No provider call on unread content", "evidence": "readQuality() gate returns article_too_short before any request: no tokens spent, no verdict on text never read."},
+    {"title": "No new HTML sinks", "evidence": "Added lines in ui/panel.js, ui/top-bar.js, options/* contain no innerHTML/insertAdjacentHTML/eval; rendering stays DOM/textContent based."}
+  ],
+  "coverage": [
+    {"area": "Discovery", "status": "Reviewed", "detail": "17 changed files since f69ddd8; manifest permissions unchanged (storage only)."},
+    {"area": "A. Authentication", "status": "NOT APPLICABLE", "detail": "No accounts; provider auth is the user's key."},
+    {"area": "B. Authorization", "status": "Reviewed (delta)", "detail": "Message handlers keep sender checks; 1 handler changed (FACTIT_UI_PREFS), returns no secret."},
+    {"area": "C. Secrets", "status": "Reviewed", "detail": "Key storage access level restricted; no keys in changed files or history since f69ddd8."},
+    {"area": "D. Injection", "status": "Reviewed (delta)", "detail": "Article text reaches only the model prompt; no DOM/eval sinks added."},
+    {"area": "E. XSS", "status": "Reviewed (delta)", "detail": "Changed UI files: no HTML-string sinks."},
+    {"area": "F. Browser security", "status": "Reviewed (delta)", "detail": "MV3 default CSP for extension pages; no remote code."},
+    {"area": "G. Logging", "status": "Reviewed (delta)", "detail": "Full result logging removed; article text never logged."},
+    {"area": "H. Dependencies", "status": "Reviewed", "detail": "0 production dependencies; dev: jsdom 30.1.0 -> undici (high), source-map-js (high), not shipped. Vendored Readability unchanged."},
+    {"area": "I. Deployment / config", "status": "Reviewed", "detail": "Manifest version bump only."},
+    {"area": "J. Backup / recovery", "status": "NOT APPLICABLE", "detail": "Local extension data only."},
+    {"area": "Phase 4 AI security", "status": "Reviewed (delta)", "detail": "Prompt v2.2: article treated as content to assess; output schema-validated before display; no tools/agency. SEC-CHAIN-001 (custom endpoint) unchanged, informational."}
+  ],
+  "recommendations": [
+    {"priority": "P3", "text": "Update jsdom (dev) to pull undici >= 8.12.2; run npm audit fix for source-map-js.", "finding_ids": []},
+    {"priority": "P3", "text": "Keep the setAccessLevel call covered by a unit test so a refactor of the worker cannot drop it silently.", "finding_ids": []}
+  ],
+  "limitations": [
+    "Delta round; files unchanged since f69ddd8 were not re-read.",
+    "No browser run in this round; Chrome storage access level behaviour taken from the API documentation."
+  ]
+}
